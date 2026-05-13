@@ -61,6 +61,24 @@ Recommended walkthrough / 建議展示順序：
 9. Review the recurring monitoring plan and command sequence  
    查看週期性監測計畫與對應命令序列
 
+## Research-backed model / 研究後新增的模型
+
+The current demo now reflects a deeper satellite tasking model.  
+目前 demo 已加入更完整的衛星任務判斷模型：
+
+- Orbit and viewing geometry / 軌道與觀測幾何
+- Payload family and achievable image quality / 載荷類型與可達成影像品質
+- Battery, storage, and spacecraft health / 電量、儲存與衛星健康狀態
+- Existing mission conflict handling / 既有任務衝突處理
+- Downlink and crosslink delivery path awareness / 下行與星間鏈路交付考量
+- Clear command-boundary separation between ADCS, payload, comms/data, and operator-gated actions / 明確區分 ADCS、載荷、通訊資料鏈路與需操作員批准的動作
+
+Related files / 相關檔案：
+
+- `docs/research-brief.md`
+- `docs/llm-integration-contract.md`
+- `schemas/mission-intent.schema.json`
+
 ## Current implementation note / 目前實作說明
 
 This first version is intentionally implemented as a deployable static prototype so the interaction model can be reviewed quickly.  

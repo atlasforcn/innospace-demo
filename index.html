@@ -92,6 +92,14 @@
             </div>
             <div id="satelliteCards" class="satellite-card-grid"></div>
           </div>
+
+          <div class="panel suitability-panel">
+            <div class="panel-heading">
+              <h2>Suitability Factors / 任務適配指標</h2>
+              <span class="pill muted">Planning model / 規劃模型</span>
+            </div>
+            <div id="suitabilityMatrix" class="suitability-grid"></div>
+          </div>
         </section>
 
         <section class="right-rail">
@@ -131,6 +139,7 @@
               <h2>Machine Command Packet / 機器指令封包</h2>
               <span id="commandStatus" class="pill muted">Locked until approval / 核准前鎖定</span>
             </div>
+            <div id="commandBoundary" class="boundary-grid"></div>
             <pre id="commandOutput" class="command-output">Approve a validated plan to reveal the execution packet.
 / 批准已驗證的任務計畫後，系統才會展開執行指令。</pre>
             <div class="command-actions">

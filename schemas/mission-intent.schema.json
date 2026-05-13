@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/mission-intent.schema.json",
+  "title": "MissionIntent",
+  "type": "object",
+  "required": [
+    "mission_category",
+    "priority",
+    "target_resolution",
+    "observation_request",
+    "constraints",
+    "operator_gate",
+    "clarification_questions"
+  ],
+  "properties": {
+    "mission_category": {
+      "type": "string",
+      "enum": [
+        "urgent_disaster_response",
+        "recurring_site_monitoring",
+        "change_detection",
+        "maritime_monitoring",
+        "communications_relay_request"
+      ]
+    },
+    "priority": {
+      "type": "string",
+      "enum": ["routine", "elevated", "high", "critical"]
+    },
+    "target_resolution": {
+      "type": "object",
+      "required": ["status", "label"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["resolved", "candidate", "needs_clarification"]
+        },
+        "label": { "type": "string" },
+        "coordinates": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lon": { "type": "number" }
+          },
+          "required": ["lat", "lon"],
+          "additionalProperties": false
+        },
+        "geometry": {
+          "type": "string",
+          "enum": ["point", "bbox", "polygon", "regional_area"]
+        }
+      },
+      "additionalProperties": true
+    },
+    "observation_request": {
+      "type": "object",
+      "required": ["payload_family"],
+      "properties": {
+        "payload_family": {
+          "type": "string",
+          "enum": ["optical", "multispectral", "thermal_ir", "sar", "communications_relay"]
+        },
+        "gsd_target_m": { "type": ["number", "null"] },
+        "cadence": {
+          "type": ["string", "null"],
+          "enum": ["once", "daily", "weekly", null]
+        },
+        "delivery_latency": {
+          "type": ["string", "null"],
+          "enum": ["best_effort", "rapid", "near_real_time", null]
+        }
+      },
+      "additionalProperties": true
+    },
+    "constraints": {
+      "type": "object",
+      "required": ["preserve_existing_missions", "comparable_lighting"],
+      "properties": {
+        "preserve_existing_missions": { "type": "boolean" },
+        "comparable_lighting": { "type": "boolean" },
+        "max_off_nadir_deg": { "type": ["number", "null"] },
+        "cloud_tolerance_pct": { "type": ["number", "null"] }
+      },
+      "additionalProperties": true
+    },
+    "operator_gate": {
+      "type": "boolean",
+      "const": true
+    },
+    "clarification_questions": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": false
+}

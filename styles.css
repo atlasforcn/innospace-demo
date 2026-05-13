@@ -551,12 +551,84 @@ input {
   overflow: auto;
 }
 
+
+.suitability-grid,
+.boundary-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.suitability-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.suitability-card,
+.boundary-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.suitability-card p,
+.boundary-card p {
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 8px 0 0;
+}
+
+.satellite-card-heading {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.mini-pill {
+  display: inline-flex;
+  width: fit-content;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.metric-list {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding-left: 18px;
+  color: var(--muted);
+}
+
+.satellite-footer {
+  margin-bottom: 0;
+  color: var(--text);
+}
+
+.satellite-card.good {
+  border-color: rgba(137, 221, 139, 0.32);
+}
+
+.satellite-card.warn {
+  border-color: rgba(255, 180, 79, 0.32);
+}
+
+.satellite-card.bad {
+  border-color: rgba(255, 120, 105, 0.32);
+}
+
+.command-panel .boundary-grid {
+  margin-bottom: 14px;
+}
+
 @media (max-width: 1280px) {
   .workspace-grid {
     grid-template-columns: 1fr;
   }
 
-  .satellite-card-grid {
+  .satellite-card-grid,
+  .suitability-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }
@@ -578,7 +650,8 @@ input {
     font-size: 24px;
   }
 
-  .satellite-card-grid {
+  .satellite-card-grid,
+  .suitability-grid {
     grid-template-columns: 1fr;
   }
 
