@@ -372,6 +372,82 @@ input {
   border: 1px solid rgba(69, 198, 179, 0.38);
 }
 
+
+.toggle-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  color: var(--text);
+  line-height: 1.4;
+  margin-bottom: 14px;
+}
+
+.toggle-row input {
+  width: auto;
+  margin: 0;
+}
+
+.custom-controls {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 14px;
+}
+
+.custom-controls .field-label {
+  grid-column: 1 / -1;
+  margin-bottom: -4px;
+}
+
+.custom-controls input {
+  margin-bottom: 0;
+}
+
+.custom-satellite-editor {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.custom-sat-row {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.custom-sat-row h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.custom-sat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.custom-sat-grid label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.custom-sat-grid input,
+.custom-sat-grid select {
+  width: 100%;
+  min-width: 0;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  padding: 10px 11px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.035);
+}
+
 .satellite-card-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -656,7 +732,8 @@ input {
   }
 
   .key-value-list div,
-  .decision-row {
+  .decision-row,
+  .custom-sat-grid {
     grid-template-columns: 1fr;
   }
 }

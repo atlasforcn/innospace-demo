@@ -40,6 +40,26 @@
             </div>
           </div>
 
+          <div class="panel custom-constellation-panel">
+            <div class="panel-heading">
+              <h2>Custom Constellation / 自訂衛星星系</h2>
+              <span class="pill muted">Test setup / 測試設定</span>
+            </div>
+            <label class="toggle-row">
+              <input id="customConstellationToggle" type="checkbox" />
+              <span>Use custom constellation for analysis / 使用自訂星系分析</span>
+            </label>
+            <div class="custom-controls">
+              <label class="field-label" for="customSatelliteCount">Satellite count / 衛星數量</label>
+              <input id="customSatelliteCount" type="number" min="1" max="12" value="4" />
+              <button id="generateConstellationButton" class="ghost-button">Generate Slots / 產生欄位</button>
+            </div>
+            <div id="customSatelliteEditor" class="custom-satellite-editor"></div>
+            <div class="button-row compact">
+              <button id="applyCustomConstellationButton" class="secondary-button">Apply Custom Setup / 套用自訂設定</button>
+            </div>
+          </div>
+
           <div class="panel">
             <div class="panel-heading">
               <h2>Clarification Channel / 需求澄清</h2>

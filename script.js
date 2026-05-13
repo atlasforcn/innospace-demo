@@ -26,10 +26,16 @@ const commandStatus = document.getElementById("commandStatus");
 const commandBoundary = document.getElementById("commandBoundary");
 const commandOutput = document.getElementById("commandOutput");
 const exportButton = document.getElementById("exportButton");
+const customConstellationToggle = document.getElementById("customConstellationToggle");
+const customSatelliteCount = document.getElementById("customSatelliteCount");
+const generateConstellationButton = document.getElementById("generateConstellationButton");
+const applyCustomConstellationButton = document.getElementById("applyCustomConstellationButton");
+const customSatelliteEditor = document.getElementById("customSatelliteEditor");
 
 let activeScenario = "wildfire";
 let constructionResolved = false;
 let approved = false;
+let activeCommandPacket = null;
 
 const suitabilityModel = [
   {
@@ -68,6 +74,303 @@ const commandBoundaryModel = [
     detail: "Vendor-specific binary telecommands, final CCSDS framing, RF scheduling, and flight-certified uplink release."
   }
 ];
+
+const defaultCustomSatellites = [
+  { orbit: "SSO", battery: 78, position: "Ascending pass near target AOI", payload: "optical", status: "nominal" },
+  { orbit: "SSO", battery: 54, position: "Descending pass west of target", payload: "thermal_ir", status: "nominal" },
+  { orbit: "LEO", battery: 38, position: "Approaching target in 18 min", payload: "sar", status: "busy" },
+  { orbit: "GEO", battery: 82, position: "Pacific relay view", payload: "communications", status: "nominal" }
+];
+
+const orbitOptions = ["SSO", "LEO", "MEO", "GEO"];
+const payloadOptions = [
+  ["optical", "Optical imaging / 光學拍照"],
+  ["multispectral", "Multispectral / 多光譜"],
+  ["thermal_ir", "Thermal IR / 熱紅外"],
+  ["sar", "SAR / 合成孔徑雷達"],
+  ["communications", "Communications relay / 通訊中繼"]
+];
+const statusOptions = [
+  ["nominal", "LVLH nominal / LVLH 正常飛行"],
+  ["targeting", "Target pointing / 目標指向中"],
+  ["busy", "Existing mission / 既有任務中"],
+  ["safe", "Safe mode / 安全模式"]
+];
+
+const payloadLabels = Object.fromEntries(payloadOptions);
+const statusLabels = Object.fromEntries(statusOptions);
+
+function optionMarkup(options, selected) {
+  return options
+    .map((option) => {
+      const value = Array.isArray(option) ? option[0] : option;
+      const label = Array.isArray(option) ? option[1] : option;
+      return `<option value="${value}" ${value === selected ? "selected" : ""}>${label}</option>`;
+    })
+    .join("");
+}
+
+function readCurrentCustomSatellites() {
+  return [...customSatelliteEditor.querySelectorAll(".custom-sat-row")].map((row, index) => ({
+    orbit: row.querySelector("[data-field='orbit']")?.value || defaultCustomSatellites[index % defaultCustomSatellites.length].orbit,
+    battery: Number(row.querySelector("[data-field='battery']")?.value || 60),
+    position: row.querySelector("[data-field='position']")?.value || defaultCustomSatellites[index % defaultCustomSatellites.length].position,
+    payload: row.querySelector("[data-field='payload']")?.value || defaultCustomSatellites[index % defaultCustomSatellites.length].payload,
+    status: row.querySelector("[data-field='status']")?.value || defaultCustomSatellites[index % defaultCustomSatellites.length].status
+  }));
+}
+
+function renderCustomEditor() {
+  const count = Math.max(1, Math.min(12, Number(customSatelliteCount.value) || 1));
+  customSatelliteCount.value = count;
+  const current = readCurrentCustomSatellites();
+  const rows = Array.from({ length: count }, (_, index) => current[index] || defaultCustomSatellites[index % defaultCustomSatellites.length]);
+
+  customSatelliteEditor.innerHTML = rows
+    .map(
+      (sat, index) => `
+        <article class="custom-sat-row">
+          <h3>CUSTOM-${String(index + 1).padStart(2, "0")}</h3>
+          <div class="custom-sat-grid">
+            <label>
+              Orbit / 軌道類型
+              <select data-field="orbit">${optionMarkup(orbitOptions, sat.orbit)}</select>
+            </label>
+            <label>
+              Battery % / 電量
+              <input data-field="battery" type="number" min="0" max="100" value="${sat.battery}" />
+            </label>
+            <label>
+              Payload / 酬載類型
+              <select data-field="payload">${optionMarkup(payloadOptions, sat.payload)}</select>
+            </label>
+            <label>
+              Status / 衛星狀態
+              <select data-field="status">${optionMarkup(statusOptions, sat.status)}</select>
+            </label>
+            <label class="wide-field">
+              Rough position / 粗略位置
+              <input data-field="position" type="text" value="${sat.position}" />
+            </label>
+          </div>
+        </article>
+      `
+    )
+    .join("");
+}
+
+function getCustomSatellites() {
+  return readCurrentCustomSatellites().map((sat, index) => ({
+    id: `CUSTOM-${String(index + 1).padStart(2, "0")}`,
+    ...sat,
+    battery: Math.max(0, Math.min(100, Number(sat.battery) || 0))
+  }));
+}
+
+function isCustomEnabled() {
+  return customConstellationToggle.checked;
+}
+
+function evaluateCustomSatellite(sat, scenarioKey) {
+  const desired = scenarioKey === "construction" ? ["optical", "multispectral"] : ["optical", "thermal_ir", "sar"];
+  let score = 0;
+  const reasons = [];
+  let relayOnly = false;
+
+  if (desired.includes(sat.payload)) {
+    score += sat.payload === "optical" ? 4 : 2;
+    reasons.push(`${payloadLabels[sat.payload]} matches the sensing need.`);
+  } else if (sat.payload === "communications") {
+    relayOnly = true;
+    score += scenarioKey === "wildfire" ? 1 : 0;
+    reasons.push("Communications payload can support delivery, but cannot perform imaging.");
+  } else {
+    score -= 2;
+    reasons.push(`${payloadLabels[sat.payload]} is not the preferred payload for this request.`);
+  }
+
+  if (sat.battery >= 55) {
+    score += 3;
+    reasons.push(`Battery ${sat.battery}% leaves a safe task margin.`);
+  } else if (sat.battery >= 35) {
+    score += 1;
+    reasons.push(`Battery ${sat.battery}% is usable but should be monitored.`);
+  } else {
+    score -= 4;
+    reasons.push(`Battery ${sat.battery}% is below the safe planning threshold.`);
+  }
+
+  if (sat.status === "nominal") {
+    score += 2;
+    reasons.push("Status is LVLH nominal and available for new tasking.");
+  } else if (sat.status === "targeting") {
+    score += 1;
+    reasons.push("Already in target-pointing state, but recovery timing must be checked.");
+  } else if (sat.status === "busy") {
+    score -= 3;
+    reasons.push("Existing mission is active; avoid interruption unless operator approves.");
+  } else if (sat.status === "safe") {
+    score -= 6;
+    reasons.push("Safe mode prevents normal mission tasking.");
+  }
+
+  if (sat.orbit === "SSO") {
+    score += 2;
+    reasons.push("SSO is a strong fit for repeatable EO geometry.");
+  } else if (sat.orbit === "LEO") {
+    score += 1;
+    reasons.push("LEO can support responsive tasking with pass-dependent timing.");
+  } else if (sat.orbit === "GEO" && sat.payload === "communications") {
+    score += 2;
+    reasons.push("GEO relay geometry is useful for delivery support.");
+  } else {
+    score -= 1;
+    reasons.push(`${sat.orbit} is less ideal for this EO imaging task.`);
+  }
+
+  if (/target|aoi|near|approach|over/i.test(sat.position)) {
+    score += 1;
+    reasons.push("Rough position suggests useful access geometry.");
+  }
+
+  const executable = !relayOnly && sat.status !== "safe" && sat.battery >= 30 && desired.includes(sat.payload);
+  const tone = executable && score >= 7 ? "good" : executable ? "warn" : "bad";
+  const title = executable && score >= 7 ? "Recommended" : executable ? "Feasible with trade-off" : relayOnly ? "Relay support only" : "Rejected by constraint";
+
+  return { sat, score, reasons, executable, tone, title, relayOnly };
+}
+
+function buildCustomConstellationPlan(scenarioKey) {
+  const evaluations = getCustomSatellites()
+    .map((sat) => evaluateCustomSatellite(sat, scenarioKey))
+    .sort((a, b) => b.score - a.score);
+  const best = evaluations.find((item) => item.executable);
+  const missionLabel = scenarioKey === "construction" ? "site monitoring" : "emergency imaging";
+
+  const cards = evaluations.map(({ sat, tone, reasons }) => ({
+    name: sat.id,
+    role: `${payloadLabels[sat.payload]} / ${sat.orbit}`,
+    tone,
+    metrics: [
+      `Battery ${sat.battery}% / 電量 ${sat.battery}%`,
+      `Position: ${sat.position} / 粗略位置`,
+      `Status: ${statusLabels[sat.status]} / 狀態`,
+      `Planner note: ${reasons[0]}`
+    ],
+    footer: reasons.slice(1, 3).join(" ") || "Custom asset is available for rough testing."
+  }));
+
+  const decisions = evaluations.map(({ sat, title, reasons, tone }) => [sat.id, title, reasons.join(" "), tone]);
+
+  if (!best) {
+    return {
+      executable: false,
+      constellationLabel: `${evaluations.length} custom satellites / ${evaluations.length} 顆自訂衛星`,
+      cards,
+      decisions,
+      recommendedAsset: {
+        title: "No executable imaging satellite / 無可執行拍攝衛星",
+        note: "At least one non-safe imaging payload with sufficient battery is required. 通訊衛星可輔助下行，但不能取代拍攝酬載。"
+      },
+      timeline: [
+        {
+          time: "Planning hold / 規劃暫停",
+          detail: "Custom constellation does not contain a currently executable imaging asset.",
+          fromState: "Planning",
+          toState: "Clarification",
+          commands: [
+            { subsystem: "Planner / 規劃器", text: "Adjust payload type, battery, status, or position and analyze again." }
+          ]
+        }
+      ],
+      command: null
+    };
+  }
+
+  const captureMode = scenarioKey === "construction" ? "OPTICAL_REPEATABILITY" : "RESPONSIVE_IMAGING";
+  const targetRef = scenarioKey === "construction" ? "CUSTOM-SITE-AOI" : "CUSTOM-URGENT-AOI";
+
+  return {
+    executable: true,
+    constellationLabel: `${evaluations.length} custom satellites / ${evaluations.length} 顆自訂衛星`,
+    cards,
+    decisions,
+    recommendedAsset: {
+      title: best.sat.id,
+      note: `${best.sat.id} is selected for ${missionLabel} based on custom battery, payload, status, orbit, and rough position.`
+    },
+    timeline: [
+      {
+        time: "T+00 min",
+        detail: `Prepare ${best.sat.id} for ${missionLabel}.`,
+        fromState: statusLabels[best.sat.status].split(" /")[0],
+        toState: "Target Acquisition",
+        commands: [
+          { subsystem: "ADCS / 姿態控制", text: `SET_TARGET_POINTING using rough position: ${best.sat.position}.` },
+          { subsystem: "Payload / 感測器", text: `SELECT_PAYLOAD_MODE for ${payloadLabels[best.sat.payload]}.` },
+          { subsystem: "Comms & Data / 通訊與資料", text: "RESERVE_STORAGE for custom test product." }
+        ]
+      },
+      {
+        time: "T+05 min",
+        detail: "Execute the custom observation window.",
+        fromState: "Target Acquisition",
+        toState: "Imaging",
+        commands: [
+          { subsystem: "ADCS / 姿態控制", text: "HOLD_POINTING during the requested capture window." },
+          { subsystem: "Payload / 感測器", text: `TRIGGER_CAPTURE in ${captureMode} mode.` },
+          { subsystem: "Comms & Data / 通訊與資料", text: "Attach custom constellation metadata to the product." }
+        ]
+      },
+      {
+        time: "T+08 min",
+        detail: "Recover and stage data delivery.",
+        fromState: "Imaging",
+        toState: "LVLH Recovery",
+        commands: [
+          { subsystem: "ADCS / 姿態控制", text: "RETURN_LVLH or configured nominal recovery attitude." },
+          { subsystem: "Payload / 感測器", text: "POWER_OFF_PAYLOAD or return payload to standby." },
+          { subsystem: "Comms & Data / 通訊與資料", text: "QUEUE_DOWNLINK; relay-only assets stay optional and operator-gated." }
+        ]
+      }
+    ],
+    command: {
+      schema_version: "mission-command-packet.v0.2",
+      mission_id: `CUSTOM-${scenarioKey.toUpperCase()}-001`,
+      mission_type: scenarioKey === "construction" ? "custom_recurring_site_monitoring" : "custom_responsive_imaging",
+      operator_gate: "required",
+      selected_assets: [best.sat.id],
+      custom_constellation: getCustomSatellites(),
+      sequences: [
+        {
+          dispatch: "time_tagged_sequence",
+          subsystem: "ADCS",
+          command: "SET_TARGET_POINTING",
+          parameters: { target_ref: targetRef, rough_position: best.sat.position, orbit_type: best.sat.orbit }
+        },
+        {
+          dispatch: "time_tagged_sequence",
+          subsystem: "PAYLOAD",
+          command: "TRIGGER_CAPTURE",
+          parameters: { payload_family: best.sat.payload, mode: captureMode }
+        },
+        {
+          dispatch: "post_capture_sequence",
+          subsystem: "COMMS_DATA",
+          command: "QUEUE_DOWNLINK",
+          parameters: { product_ref: `CUSTOM-${best.sat.id}-PRODUCT` }
+        }
+      ],
+      safety: {
+        input_battery_pct: best.sat.battery,
+        estimated_battery_after_task_pct: Math.max(0, best.sat.battery - 6),
+        propulsion_required: false,
+        crosslink_required: false,
+        generated_from_custom_constellation: true
+      }
+    }
+  };
+}
 
 const scenarios = {
   wildfire: {
@@ -571,6 +874,9 @@ function renderCommandBoundary() {
 
 function renderWildfire() {
   const scenario = scenarios.wildfire;
+  const customPlan = isCustomEnabled() ? buildCustomConstellationPlan("wildfire") : null;
+  const planSource = customPlan || scenario;
+
   missionMap.classList.remove("idle");
   mapBadge.className = "pill";
   constellationBadge.className = "pill";
@@ -580,24 +886,35 @@ function renderWildfire() {
   mapSatellites.forEach((satellite) => satellite.classList.remove("hidden"));
   clarificationBox.className = "clarification-box ready";
   clarificationBox.innerHTML = "<strong>Ready / 已就緒。</strong><p>The target phrase can be resolved into a wildfire search AOI, so the system can proceed into imaging requirements and tasking analysis. / 系統能將該地名轉成火災搜尋 AOI，因此可進入成像需求與任務分析。</p>";
-  mapCaption.textContent = "Rocky Mountains wildfire search region resolved from natural language. / 已從自然語言解析出落基山火災搜尋區域。";
-  mapBadge.textContent = "AOI resolved / 區域已解析";
-  constellationBadge.textContent = scenario.constellation;
+  mapCaption.textContent = customPlan
+    ? "Custom constellation is being evaluated against the wildfire AOI. / 正以自訂星系評估火災 AOI。"
+    : "Rocky Mountains wildfire search region resolved from natural language. / 已從自然語言解析出落基山火災搜尋區域。";
+  mapBadge.textContent = customPlan ? "Custom constellation / 自訂星系" : "AOI resolved / 區域已解析";
+  constellationBadge.textContent = customPlan ? customPlan.constellationLabel : scenario.constellation;
+
   renderDefinitionList(scenario.intent);
-  renderCards(scenario.satellites);
+  renderCards(planSource.cards || planSource.satellites);
   renderSuitabilityModel();
-  renderDecisionRows(scenario.decisions);
-  renderRecommendedAsset(scenario.recommendedAsset);
-  renderTimeline(scenario.timeline);
+  renderDecisionRows(planSource.decisions);
+  renderRecommendedAsset(planSource.recommendedAsset);
+  renderTimeline(planSource.timeline);
   renderCommandBoundary();
-  planStatus.textContent = "Validated recommendation ready / 已產出可審核建議";
+  activeCommandPacket = customPlan ? customPlan.command : scenario.command;
+  planStatus.textContent = customPlan
+    ? customPlan.executable
+      ? "Custom constellation plan ready / 自訂星系計畫可供審核"
+      : "Custom constellation has no executable imaging asset / 自訂星系無可執行拍攝資產"
+    : "Validated recommendation ready / 已產出可審核建議";
 }
 
 function renderConstruction(resolved) {
   const scenario = scenarios.construction;
+  const customPlan = resolved && isCustomEnabled() ? buildCustomConstellationPlan("construction") : null;
+  const planSource = customPlan || scenario;
+
   missionMap.classList.remove("idle");
   constellationBadge.className = "pill";
-  constellationBadge.textContent = scenario.constellation;
+  constellationBadge.textContent = customPlan ? customPlan.constellationLabel : scenario.constellation;
   mapTarget.classList.remove("hidden");
   mapBadge.className = resolved ? "pill" : "pill muted";
   renderSuitabilityModel();
@@ -608,8 +925,10 @@ function renderConstruction(resolved) {
     mapTarget.innerHTML = "<span>AOI</span>";
     mapTracks.forEach((track) => track.classList.remove("hidden"));
     mapSatellites.forEach((satellite) => satellite.classList.remove("hidden"));
-    mapCaption.textContent = "Construction site AOI resolved and ready for recurring monitoring. / 工地 AOI 已解析，可進入週期性監測。";
-    mapBadge.textContent = "AOI resolved / 區域已解析";
+    mapCaption.textContent = customPlan
+      ? "Custom constellation is being evaluated against the resolved construction AOI. / 正以自訂星系評估已解析工地 AOI。"
+      : "Construction site AOI resolved and ready for recurring monitoring. / 工地 AOI 已解析，可進入週期性監測。";
+    mapBadge.textContent = customPlan ? "Custom constellation / 自訂星系" : "AOI resolved / 區域已解析";
   } else {
     mapTarget.className = "map-target construction-target";
     mapTarget.innerHTML = "<span>?</span>";
@@ -622,15 +941,15 @@ function renderConstruction(resolved) {
   }
 
   renderDefinitionList(resolved ? scenario.resolvedIntent : scenario.unresolvedIntent);
-  renderCards(resolved ? scenario.satellites : []);
+  renderCards(resolved ? planSource.cards || planSource.satellites : []);
   renderDecisionRows(
     resolved
-      ? scenario.decisions
+      ? planSource.decisions
       : [["System", "Paused", "Mission planning has not started because the target is not yet geolocated.", "warn"]]
   );
   renderTimeline(
     resolved
-      ? scenario.timeline
+      ? planSource.timeline
       : [
           {
             time: "Awaiting target",
@@ -645,35 +964,44 @@ function renderConstruction(resolved) {
   );
 
   if (resolved) {
-    renderRecommendedAsset(scenario.recommendedAsset);
+    renderRecommendedAsset(planSource.recommendedAsset);
+    activeCommandPacket = customPlan ? customPlan.command : scenario.command;
   } else {
     recommendedAsset.className = "recommended-asset empty-plan";
     recommendedAsset.innerHTML = "<span class=\"label\">Recommended asset / 最建議衛星</span><strong>Awaiting geolocation / 等待定位</strong>";
+    activeCommandPacket = null;
   }
 
-  planStatus.textContent = resolved ? "Recurring plan ready for approval / 週期任務可供批准" : "Clarification required / 需要補充資訊";
+  planStatus.textContent = resolved
+    ? customPlan
+      ? customPlan.executable
+        ? "Custom recurring plan ready / 自訂週期任務可供批准"
+        : "Custom constellation has no executable imaging asset / 自訂星系無可執行拍攝資產"
+      : "Recurring plan ready for approval / 週期任務可供批准"
+    : "Clarification required / 需要補充資訊";
 }
 
 function analyzeMission() {
   approved = false;
   exportButton.disabled = true;
+  activeCommandPacket = null;
   commandStatus.textContent = "Locked until approval / 核准前鎖定";
   commandOutput.textContent = "Approve a validated plan to reveal the execution packet.\n/ 批准已驗證的任務計畫後，系統才會展開執行指令。";
 
   if (activeScenario === "wildfire") {
-    approveButton.disabled = false;
     renderWildfire();
+    approveButton.disabled = !activeCommandPacket;
     return;
   }
 
   if (!constructionResolved) {
-    approveButton.disabled = true;
     renderConstruction(false);
+    approveButton.disabled = true;
     return;
   }
 
-  approveButton.disabled = false;
   renderConstruction(true);
+  approveButton.disabled = !activeCommandPacket;
 }
 
 function resolveConstructionTarget(mode) {
@@ -698,7 +1026,7 @@ function approveMission() {
   }
   approved = true;
   commandStatus.textContent = "Released after operator approval / 經操作員批准後釋出";
-  commandOutput.textContent = JSON.stringify(scenarios[activeScenario].command, null, 2);
+  commandOutput.textContent = JSON.stringify(activeCommandPacket || scenarios[activeScenario].command, null, 2);
   exportButton.disabled = false;
 }
 
@@ -716,6 +1044,23 @@ resolveAddressButton.addEventListener("click", () => {
   resolveConstructionTarget("address");
 });
 
+generateConstellationButton.addEventListener("click", () => {
+  renderCustomEditor();
+});
+
+applyCustomConstellationButton.addEventListener("click", () => {
+  customConstellationToggle.checked = true;
+  if (!missionMap.classList.contains("idle")) {
+    analyzeMission();
+  }
+});
+
+customConstellationToggle.addEventListener("change", () => {
+  if (!missionMap.classList.contains("idle")) {
+    analyzeMission();
+  }
+});
+
 drawAoiButton.addEventListener("click", () => {
   aoiHint.classList.remove("hidden");
   mapCaption.textContent = "AOI drawing mode active. Click the map to confirm the construction site boundary. / 已進入 AOI 框選模式，請點擊地圖確認工地範圍。";
@@ -727,4 +1072,5 @@ document.querySelector(".mission-map").addEventListener("click", () => {
   }
 });
 
+renderCustomEditor();
 setScenario("wildfire");

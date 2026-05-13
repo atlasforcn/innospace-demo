@@ -35,6 +35,12 @@ It is designed to show both future product value and practical mission feasibili
   - Mission approval is placed directly below the recommended plan / 批准任務按鈕直接放在建議任務計畫下方
   - An export action becomes available after approval / 批准後才顯示匯出指令封包的下一步動作
 
+- Custom constellation test area / 自訂衛星星系測試區
+  - Enable or disable custom constellation analysis / 可切換是否使用自訂星系進行分析
+  - Set satellite count from 1 to 12 / 可設定 1 到 12 顆衛星
+  - Configure orbit type, battery, rough position, payload type, and spacecraft status / 可設定軌道類型、電量、粗略位置、酬載類型與衛星狀態
+  - Re-run the scenario planner using the custom assets / 可用自訂衛星重新執行情境規劃
+
 ## How to view / 如何查看
 
 Open `index.html` in a browser.  
