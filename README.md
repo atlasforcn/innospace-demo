@@ -79,6 +79,21 @@ Related files / 相關檔案：
 - `docs/llm-integration-contract.md`
 - `schemas/mission-intent.schema.json`
 
+## LLM boundary choice / LLM 邊界方案
+
+The recommended architecture is **not RAG-first** and **not skill-first**.  
+建議架構不是以 RAG 為主，也不是以 skill 為主。
+
+The strongest option is a layered boundary: **Structured intent schema + deterministic planner + allowlisted command DSL + validator gate**.  
+最穩的方案是：**結構化任務 schema + 可驗證 planner + 白名單指令 DSL + 驗證器 gate**。
+
+See / 詳見：
+
+- `docs/llm-boundary-architecture.md`
+- `schemas/command-envelope.schema.json`
+- `lib/allowed-command-catalog.json`
+- `lib/command-boundary.js`
+
 ## Current implementation note / 目前實作說明
 
 This first version is intentionally implemented as a deployable static prototype so the interaction model can be reviewed quickly.  

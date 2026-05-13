@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/command-envelope.schema.json",
+  "title": "BoundedCommandEnvelope",
+  "type": "object",
+  "required": ["schema_version", "mission_id", "operator_gate", "commands"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "bounded-command-envelope.v0.1" },
+    "mission_id": { "type": "string" },
+    "operator_gate": { "type": "boolean", "const": true },
+    "commands": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["dispatch_type", "subsystem", "command", "parameters", "requires_human_confirmation"],
+        "properties": {
+          "dispatch_type": {
+            "type": "string",
+            "enum": ["immediate", "time_tagged", "post_event", "recurring"]
+          },
+          "subsystem": {
+            "type": "string",
+            "enum": ["ADCS", "PAYLOAD", "COMMS_DATA", "MISSION_CONTROL", "PROPULSION"]
+          },
+          "command": {
+            "type": "string",
+            "enum": [
+              "SET_TARGET_POINTING",
+              "HOLD_POINTING",
+              "RETURN_LVLH",
+              "POWER_ON_PAYLOAD",
+              "POWER_OFF_PAYLOAD",
+              "SELECT_PAYLOAD_MODE",
+              "TRIGGER_CAPTURE",
+              "RESERVE_STORAGE",
+              "QUEUE_DOWNLINK",
+              "REQUEST_CROSSLINK_RELAY",
+              "MARK_OPERATOR_REVIEW",
+              "REQUEST_MANEUVER_REVIEW"
+            ]
+          },
+          "parameters": { "type": "object", "additionalProperties": true },
+          "requires_human_confirmation": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

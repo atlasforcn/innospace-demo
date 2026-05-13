@@ -1,0 +1,35 @@
+{
+  "schema_version": "bounded-command-envelope.v0.1",
+  "mission_id": "WF-2026-001",
+  "operator_gate": true,
+  "commands": [
+    {
+      "dispatch_type": "time_tagged",
+      "subsystem": "ADCS",
+      "command": "SET_TARGET_POINTING",
+      "parameters": { "target_ref": "WF-AOI-001", "slew_deg": 18, "settle_s": 300 },
+      "requires_human_confirmation": false
+    },
+    {
+      "dispatch_type": "time_tagged",
+      "subsystem": "PAYLOAD",
+      "command": "POWER_ON_PAYLOAD",
+      "parameters": { "payload_family": "optical" },
+      "requires_human_confirmation": false
+    },
+    {
+      "dispatch_type": "time_tagged",
+      "subsystem": "PAYLOAD",
+      "command": "TRIGGER_CAPTURE",
+      "parameters": { "target_ref": "WF-AOI-001", "gsd_m": 3 },
+      "requires_human_confirmation": false
+    },
+    {
+      "dispatch_type": "post_event",
+      "subsystem": "COMMS_DATA",
+      "command": "QUEUE_DOWNLINK",
+      "parameters": { "product_ref": "WF-2026-001-OPTICAL" },
+      "requires_human_confirmation": false
+    }
+  ]
+}
