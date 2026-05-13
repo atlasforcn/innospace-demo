@@ -94,6 +94,19 @@ See / 詳見：
 - `lib/allowed-command-catalog.json`
 - `lib/command-boundary.js`
 
+## LLM provider decision / LLM 接入決策
+
+Use the OpenAI API directly. Do not connect the ChatGPT consumer app as the backend API.  
+建議直接使用 OpenAI API，不要把 ChatGPT 網頁版或訂閱本身當作後端 API。
+
+The API key should live only on the server side.  
+API key 只能放在後端，不能放在瀏覽器前端。
+
+Related files / 相關檔案：
+
+- `docs/llm-provider-decision.md`
+- `examples/openai-intent-parser.example.mjs`
+
 ## Current implementation note / 目前實作說明
 
 This first version is intentionally implemented as a deployable static prototype so the interaction model can be reviewed quickly.  
