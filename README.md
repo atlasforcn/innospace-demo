@@ -107,6 +107,22 @@ Related files / 相關檔案：
 - `docs/llm-provider-decision.md`
 - `examples/openai-intent-parser.example.mjs`
 
+## API key safety / API Key 安全
+
+This repository is public, so real API keys must never be committed.  
+這個 repo 是公開的，所以絕對不能 commit 真實 API key。
+
+Use `.env.example` as a template and store the real key only in `.env.local` or a hosting provider secret manager.  
+請用 `.env.example` 當模板，真實 key 只能放在 `.env.local` 或部署平台的 secret manager。
+
+If a key has been pasted into a shared place, revoke it and create a new one.  
+如果 key 曾被貼到共享環境，請刪除那把 key 並重新建立。
+
+See / 詳見：
+
+- `docs/api-key-security.md`
+- `.env.example`
+
 ## Current implementation note / 目前實作說明
 
 This first version is intentionally implemented as a deployable static prototype so the interaction model can be reviewed quickly.  
