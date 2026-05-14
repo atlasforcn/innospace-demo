@@ -1,0 +1,162 @@
+<main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Universal Mission Abstraction Layer / 通用任務抽象層</p>
+          <h1>Intent-to-Tasking Mission Dashboard / 任務意圖轉指令儀表板</h1>
+        </div>
+        <div class="topbar-status">
+          <span class="status-dot"></span>
+          <span>Operator-supervised demo environment / 操作員監督式展示環境</span>
+        </div>
+      </header>
+
+      <section class="workspace-grid">
+        <section class="left-rail">
+          <div class="panel mission-input">
+            <div class="panel-heading">
+              <h2>Mission Request / 任務需求</h2>
+              <span class="pill">Natural language / 自然語言</span>
+            </div>
+
+            <div class="scenario-buttons" role="group" aria-label="Scenario presets">
+              <button class="scenario-button active" data-scenario="wildfire">Wildfire Response / 森林大火應變</button>
+              <button class="scenario-button" data-scenario="construction">Construction Monitoring / 工地監測</button>
+            </div>
+
+            <label class="field-label" for="missionPrompt">Prompt / 輸入需求</label>
+            <textarea id="missionPrompt" rows="5"></textarea>
+
+            <div class="button-row">
+              <button id="analyzeButton" class="primary-button">Analyze Request / 分析需求</button>
+            </div>
+          </div>
+
+          <div class="panel custom-constellation-panel">
+            <div class="panel-heading">
+              <h2>Custom Constellation / 自訂衛星星系</h2>
+              <span class="pill muted">Test setup / 測試設定</span>
+            </div>
+            <label class="toggle-row">
+              <input id="customConstellationToggle" type="checkbox" />
+              <span>Use custom constellation for analysis / 使用自訂星系分析</span>
+            </label>
+            <div class="custom-controls">
+              <label class="field-label" for="customSatelliteCount">Satellite count / 衛星數量</label>
+              <input id="customSatelliteCount" type="number" min="1" max="12" value="4" />
+              <button id="generateConstellationButton" class="ghost-button">Generate Slots / 產生欄位</button>
+            </div>
+            <div id="customSatelliteEditor" class="custom-satellite-editor"></div>
+            <div class="button-row compact">
+              <button id="applyCustomConstellationButton" class="secondary-button">Apply Custom Setup / 套用自訂設定</button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-heading">
+              <h2>Clarification Channel / 需求澄清</h2>
+              <span class="pill muted">Input validation / 輸入檢查</span>
+            </div>
+            <div id="clarificationBox" class="clarification-box empty-state">
+              <strong>Awaiting analysis / 等待分析。</strong>
+              <p>Submit a mission request to begin target validation and clarification. / 請先送出任務需求，系統才會開始檢查與澄清。</p>
+            </div>
+            <div id="constructionTools" class="construction-tools hidden">
+              <label class="field-label" for="addressInput">Provide a clearer target / 補充更清楚的位置資訊</label>
+              <input id="addressInput" type="text" placeholder="Example: 1600 Pennsylvania Avenue NW, Washington, D.C." />
+              <div class="button-row compact">
+                <button id="resolveAddressButton" class="secondary-button">Resolve Address / 解析地址</button>
+                <button id="drawAoiButton" class="ghost-button">Draw AOI on Map / 地圖框選區域</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="center-stage">
+          <div class="panel mission-map-panel">
+            <div class="panel-heading map-heading">
+              <div>
+                <h2>Mission Area & Access Opportunities / 任務區域與可觀測機會</h2>
+                <p id="mapCaption">No mission area has been analyzed yet. / 尚未開始任務區域分析。</p>
+              </div>
+              <span id="mapBadge" class="pill muted">Awaiting analysis / 等待分析</span>
+            </div>
+
+            <div class="mission-map idle">
+              <div class="map-grid"></div>
+              <div id="mapTarget" class="map-target wildfire-target hidden">
+                <span>AOI</span>
+              </div>
+              <div class="track track-a hidden"></div>
+              <div class="track track-b hidden"></div>
+              <div class="track track-c hidden"></div>
+              <button class="satellite sat-a hidden" data-sat="SAT-A">SAT-A</button>
+              <button class="satellite sat-b selected hidden" data-sat="SAT-B">SAT-B</button>
+              <button class="satellite sat-c hidden" data-sat="SAT-C">SAT-C</button>
+              <div id="aoiHint" class="aoi-hint hidden">AOI drawing active / 已進入框選模式</div>
+            </div>
+          </div>
+
+          <div class="panel constellation-panel">
+            <div class="panel-heading">
+              <h2>Constellation Snapshot / 星系狀態</h2>
+              <span id="constellationBadge" class="pill muted">Awaiting analysis / 等待分析</span>
+            </div>
+            <div id="satelliteCards" class="satellite-card-grid"></div>
+          </div>
+
+          <div class="panel suitability-panel">
+            <div class="panel-heading">
+              <h2>Suitability Factors / 任務適配指標</h2>
+              <span class="pill muted">Planning model / 規劃模型</span>
+            </div>
+            <div id="suitabilityMatrix" class="suitability-grid"></div>
+          </div>
+        </section>
+
+        <section class="right-rail">
+          <div class="panel">
+            <div class="panel-heading">
+              <h2>Mission Abstraction / 任務抽象化</h2>
+              <span class="pill">Structured intent / 結構化意圖</span>
+            </div>
+            <dl id="intentSummary" class="key-value-list"></dl>
+          </div>
+
+          <div class="panel">
+            <div class="panel-heading">
+              <h2>Decision Analysis / 決策分析</h2>
+              <span class="pill">Constraint solver / 約束判斷</span>
+            </div>
+            <div id="decisionTable" class="decision-table"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-heading">
+              <h2>Recommended Mission Plan / 建議任務計畫</h2>
+              <span id="planStatus" class="pill muted">Awaiting analysis / 等待分析</span>
+            </div>
+            <div id="recommendedAsset" class="recommended-asset empty-plan">
+              <span class="label">Recommended asset / 最建議衛星</span>
+              <strong>Awaiting analysis / 等待分析</strong>
+            </div>
+            <ol id="missionTimeline" class="timeline"></ol>
+            <div class="plan-actions">
+              <button id="approveButton" class="secondary-button" disabled>Approve Mission Plan / 批准任務計畫</button>
+            </div>
+          </div>
+
+          <div class="panel command-panel">
+            <div class="panel-heading">
+              <h2>Machine Command Packet / 機器指令封包</h2>
+              <span id="commandStatus" class="pill muted">Locked until approval / 核准前鎖定</span>
+            </div>
+            <div id="commandBoundary" class="boundary-grid"></div>
+            <pre id="commandOutput" class="command-output">Approve a validated plan to reveal the execution packet.
+/ 批准已驗證的任務計畫後，系統才會展開執行指令。</pre>
+            <div class="command-actions">
+              <button id="exportButton" class="ghost-button" disabled>Export Command Packet / 匯出指令封包</button>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>

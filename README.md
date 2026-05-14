@@ -129,6 +129,31 @@ See / 詳見：
 - `docs/api-key-security.md`
 - `.env.example`
 
+## Vercel deployment and API route / Vercel 部署與 API
+
+The project has been upgraded to a Next.js app so Vercel can run a server-side API route.  
+專案已升級成 Next.js，讓 Vercel 可以執行後端 API route。
+
+- Frontend page / 前端頁面: `app/page.jsx`
+- LLM API route / LLM 後端 API: `app/api/interpret/route.js`
+- Static browser assets / 前端靜態資源: `public/styles.css`, `public/script.js`
+
+Set this environment variable in Vercel Project Settings before using the real model:  
+若要使用真實模型，請在 Vercel Project Settings 設定環境變數：
+
+```text
+OPENAI_API_KEY=your_new_key_here
+```
+
+Optional / 可選：
+
+```text
+OPENAI_MODEL=gpt-4.1-mini
+```
+
+If `OPENAI_API_KEY` is missing, `/api/interpret` returns a deterministic fallback intent so the demo remains usable.  
+如果沒有設定 `OPENAI_API_KEY`，`/api/interpret` 會回傳後備解析結果，demo 仍可操作。
+
 ## Current implementation note / 目前實作說明
 
 This first version is intentionally implemented as a deployable static prototype so the interaction model can be reviewed quickly.  
