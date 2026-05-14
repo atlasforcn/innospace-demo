@@ -96,6 +96,27 @@ export async function POST(request) {
 
   if (!response.ok) {
     const errorText = await response.text();
+    let errorCode = null;
+    let errorMessage = errorText;
+
+    try {
+      const parsed = JSON.parse(errorText);
+      errorCode = parsed?.error?.code || parsed?.error?.type || null;
+      errorMessage = parsed?.error?.message || errorText;
+    } catch {
+      // Keep the raw error text when OpenAI returns a non-JSON response.
+    }
+
+    const fallbackCodes = new Set(["insufficient_quota", "rate_limit_exceeded", "invalid_api_key"]);
+    if (fallbackCodes.has(errorCode)) {
+      return Response.json({
+        source: "fallback",
+        warning: `OpenAI API unavailable (${errorCode}). Returning deterministic fallback intent.`,
+        detail: errorMessage,
+        intent: fallbackIntent(prompt)
+      });
+    }
+
     return Response.json({ error: "OpenAI API request failed", detail: errorText }, { status: 502 });
   }
 
