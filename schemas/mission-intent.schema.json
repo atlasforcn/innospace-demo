@@ -25,63 +25,145 @@
     },
     "priority": {
       "type": "string",
-      "enum": ["routine", "elevated", "high", "critical"]
+      "enum": [
+        "routine",
+        "elevated",
+        "high",
+        "critical"
+      ]
     },
     "target_resolution": {
       "type": "object",
-      "required": ["status", "label"],
+      "required": [
+        "status",
+        "label",
+        "coordinates",
+        "geometry"
+      ],
       "properties": {
         "status": {
           "type": "string",
-          "enum": ["resolved", "candidate", "needs_clarification"]
+          "enum": [
+            "resolved",
+            "candidate",
+            "needs_clarification"
+          ]
         },
-        "label": { "type": "string" },
+        "label": {
+          "type": "string"
+        },
         "coordinates": {
-          "type": "object",
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "lat",
+            "lon"
+          ],
           "properties": {
-            "lat": { "type": "number" },
-            "lon": { "type": "number" }
+            "lat": {
+              "type": "number"
+            },
+            "lon": {
+              "type": "number"
+            }
           },
-          "required": ["lat", "lon"],
           "additionalProperties": false
         },
         "geometry": {
           "type": "string",
-          "enum": ["point", "bbox", "polygon", "regional_area"]
+          "enum": [
+            "point",
+            "bbox",
+            "polygon",
+            "regional_area"
+          ]
         }
       },
-      "additionalProperties": true
+      "additionalProperties": false
     },
     "observation_request": {
       "type": "object",
-      "required": ["payload_family"],
+      "required": [
+        "payload_family",
+        "gsd_target_m",
+        "cadence",
+        "delivery_latency"
+      ],
       "properties": {
         "payload_family": {
           "type": "string",
-          "enum": ["optical", "multispectral", "thermal_ir", "sar", "communications_relay"]
+          "enum": [
+            "optical",
+            "multispectral",
+            "thermal_ir",
+            "sar",
+            "communications_relay"
+          ]
         },
-        "gsd_target_m": { "type": ["number", "null"] },
+        "gsd_target_m": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "cadence": {
-          "type": ["string", "null"],
-          "enum": ["once", "daily", "weekly", null]
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "once",
+            "daily",
+            "weekly",
+            null
+          ]
         },
         "delivery_latency": {
-          "type": ["string", "null"],
-          "enum": ["best_effort", "rapid", "near_real_time", null]
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "best_effort",
+            "rapid",
+            "near_real_time",
+            null
+          ]
         }
       },
-      "additionalProperties": true
+      "additionalProperties": false
     },
     "constraints": {
       "type": "object",
-      "required": ["preserve_existing_missions", "comparable_lighting"],
+      "required": [
+        "preserve_existing_missions",
+        "comparable_lighting",
+        "max_off_nadir_deg",
+        "cloud_tolerance_pct"
+      ],
       "properties": {
-        "preserve_existing_missions": { "type": "boolean" },
-        "comparable_lighting": { "type": "boolean" },
-        "max_off_nadir_deg": { "type": ["number", "null"] },
-        "cloud_tolerance_pct": { "type": ["number", "null"] }
+        "preserve_existing_missions": {
+          "type": "boolean"
+        },
+        "comparable_lighting": {
+          "type": "boolean"
+        },
+        "max_off_nadir_deg": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "cloud_tolerance_pct": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
       },
-      "additionalProperties": true
+      "additionalProperties": false
     },
     "operator_gate": {
       "type": "boolean",
@@ -89,7 +171,9 @@
     },
     "clarification_questions": {
       "type": "array",
-      "items": { "type": "string" }
+      "items": {
+        "type": "string"
+      }
     }
   },
   "additionalProperties": false

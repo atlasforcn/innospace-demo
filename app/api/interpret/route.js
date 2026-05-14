@@ -15,6 +15,7 @@ function fallbackIntent(prompt) {
     target_resolution: {
       status: needsClarification ? "needs_clarification" : isWildfire ? "candidate" : "needs_clarification",
       label: isWildfire ? "Rocky Mountains candidate AOI" : isConstruction ? "ambiguous construction site" : "unspecified target",
+      coordinates: null,
       geometry: isWildfire ? "regional_area" : "point"
     },
     observation_request: {
