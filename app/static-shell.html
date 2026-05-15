@@ -4,11 +4,24 @@
           <p class="eyebrow">Universal Mission Abstraction Layer / 通用任務抽象層</p>
           <h1>Intent-to-Tasking Mission Dashboard / 任務意圖轉指令儀表板</h1>
         </div>
-        <div class="topbar-status">
-          <span class="status-dot"></span>
-          <span>Operator-supervised demo environment / 操作員監督式展示環境</span>
+        <div class="topbar-actions">
+          <div class="topbar-status">
+            <span class="status-dot"></span>
+            <span>Operator-supervised demo environment / 操作員監督式展示環境</span>
+          </div>
+          <button id="dashboardModeToggle" class="secondary-button" type="button">Show Full Dashboard / 展示完整 Dashboard</button>
         </div>
       </header>
+
+      <section class="presentation-toolbar" aria-label="Step presentation controls">
+        <button id="prevStepButton" class="ghost-button" type="button">Previous / 上一步</button>
+        <div class="presentation-step-summary">
+          <span id="currentStepBadge" class="phase-chip">Step 1 of 11 / 第 1 步，共 11 步</span>
+          <strong id="currentStepTitle">Mission Request / 任務需求</strong>
+          <p id="currentStepHint">Each step is shown as one independent card for demo delivery. / 每個步驟會以獨立卡片呈現，方便展演。</p>
+        </div>
+        <button id="nextStepButton" class="primary-button" type="button">Next / 下一步</button>
+      </section>
 
       <section class="workspace-grid">
         <section class="workflow-rail">

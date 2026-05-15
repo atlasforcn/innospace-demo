@@ -41,6 +41,13 @@ const workflowStateBadge = document.getElementById("workflowStateBadge");
 const workflowCalloutText = document.getElementById("workflowCalloutText");
 const guidedTaskList = document.getElementById("guidedTaskList");
 const scenarioFlowGrid = document.getElementById("scenarioFlowGrid");
+const dashboardModeToggle = document.getElementById("dashboardModeToggle");
+const prevStepButton = document.getElementById("prevStepButton");
+const nextStepButton = document.getElementById("nextStepButton");
+const currentStepBadge = document.getElementById("currentStepBadge");
+const currentStepTitle = document.getElementById("currentStepTitle");
+const currentStepHint = document.getElementById("currentStepHint");
+const presentationPanels = Array.from(document.querySelectorAll(".input-rail .panel, .output-rail .panel"));
 
 let activeScenario = "wildfire";
 let constructionResolved = false;
@@ -49,6 +56,30 @@ let activeCommandPacket = null;
 let selectedMapImageSource = "auto";
 let uploadedMapImageUrl = null;
 let uploadedMapImageName = "";
+let activePresentationStepIndex = 0;
+let presentationModeEnabled = true;
+
+const presentationStepKeys = [
+  "request",
+  "request",
+  "request",
+  "clarify",
+  "clarify",
+  "plan",
+  "plan",
+  "plan",
+  "plan",
+  "approve",
+  "export"
+];
+
+const workflowStepToPanel = {
+  request: 0,
+  clarify: 3,
+  plan: 5,
+  approve: 9,
+  export: 10
+};
 
 const mapImagePresets = {
   wildfire: {
@@ -165,6 +196,69 @@ const taskQueueByState = {
 
 function mapAssetPath(file) {
   return window.location.protocol === "file:" ? `public/${file}` : `/${file}`;
+}
+
+function clampPresentationStep(index) {
+  return Math.max(0, Math.min(presentationPanels.length - 1, index));
+}
+
+function stepHintFromPanel(panel) {
+  const helper =
+    panel.querySelector(".input-helper") ||
+    panel.querySelector(".panel-subtitle") ||
+    panel.querySelector(".map-heading p") ||
+    panel.querySelector(".clarification-box p") ||
+    panel.querySelector(".recommended-asset span:last-child") ||
+    panel.querySelector(".boundary-card p");
+
+  return helper?.textContent?.trim() || "Review this card before moving to the next step. / 檢查這張卡片後再進入下一步。";
+}
+
+function updatePresentationStep() {
+  if (!presentationPanels.length) return;
+
+  activePresentationStepIndex = clampPresentationStep(activePresentationStepIndex);
+
+  presentationPanels.forEach((panel, index) => {
+    const isActive = index === activePresentationStepIndex;
+    panel.classList.toggle("active-step", isActive);
+    panel.setAttribute("aria-hidden", presentationModeEnabled && !isActive ? "true" : "false");
+  });
+
+  const activePanel = presentationPanels[activePresentationStepIndex];
+  const title = activePanel.querySelector(".panel-heading h2")?.textContent?.trim() || "Mission step / 任務步驟";
+  const label = activePanel.dataset.phaseLabel || `Step ${activePresentationStepIndex + 1}`;
+
+  currentStepBadge.textContent = `Step ${activePresentationStepIndex + 1} of ${presentationPanels.length} / 第 ${activePresentationStepIndex + 1} 步，共 ${presentationPanels.length} 步`;
+  currentStepTitle.textContent = `${label} · ${title}`;
+  currentStepHint.textContent = stepHintFromPanel(activePanel);
+
+  prevStepButton.disabled = activePresentationStepIndex === 0;
+  nextStepButton.disabled = activePresentationStepIndex === presentationPanels.length - 1;
+
+  const stepKey = presentationStepKeys[activePresentationStepIndex];
+  progressSteps.forEach((step) => {
+    step.classList.toggle("presentation-current", step.dataset.step === stepKey);
+  });
+}
+
+function goToPresentationStep(index) {
+  activePresentationStepIndex = clampPresentationStep(index);
+  updatePresentationStep();
+}
+
+function goToWorkflowStep(stepKey) {
+  goToPresentationStep(workflowStepToPanel[stepKey] ?? 0);
+}
+
+function setPresentationMode(enabled) {
+  presentationModeEnabled = enabled;
+  document.body.classList.toggle("presentation-mode", enabled);
+  document.body.classList.toggle("dashboard-mode", !enabled);
+  dashboardModeToggle.textContent = enabled
+    ? "Show Full Dashboard / 展示完整 Dashboard"
+    : "Step-by-Step Demo / 回到逐步展演";
+  updatePresentationStep();
 }
 
 function scenarioMapPreset(scenarioKey) {
@@ -972,6 +1066,8 @@ function setScenario(nextScenario) {
     constructionResolved = false;
     constructionTools.classList.remove("hidden");
   }
+
+  goToPresentationStep(0);
 }
 
 function resetPanels() {
@@ -998,6 +1094,7 @@ function resetPanels() {
   recommendedAsset.className = "recommended-asset empty-plan";
   recommendedAsset.innerHTML = "<span class=\"label\">Recommended asset / 最建議衛星</span><strong>Awaiting analysis / 等待分析</strong>";
   updateWorkflowProgress("idle");
+  updatePresentationStep();
 }
 
 function renderDefinitionList(entries) {
@@ -1358,6 +1455,7 @@ async function analyzeMission() {
     renderWildfire();
     approveButton.disabled = !activeCommandPacket;
     appendLlmIntentSummary(await llmPromise);
+    goToPresentationStep(4);
     return;
   }
 
@@ -1365,12 +1463,14 @@ async function analyzeMission() {
     renderConstruction(false);
     approveButton.disabled = true;
     appendLlmIntentSummary(await llmPromise);
+    goToPresentationStep(3);
     return;
   }
 
   renderConstruction(true);
   approveButton.disabled = !activeCommandPacket;
   appendLlmIntentSummary(await llmPromise);
+  goToPresentationStep(4);
 }
 
 function resolveConstructionTarget(mode) {
@@ -1398,6 +1498,7 @@ function approveMission() {
   commandOutput.textContent = JSON.stringify(activeCommandPacket || scenarios[activeScenario].command, null, 2);
   exportButton.disabled = false;
   updateWorkflowProgress("approved");
+  goToPresentationStep(10);
 }
 
 mapImageSelect.addEventListener("change", () => {
@@ -1435,6 +1536,30 @@ clearMapImageButton.addEventListener("click", () => {
 
 scenarioButtons.forEach((button) => {
   button.addEventListener("click", () => setScenario(button.dataset.scenario));
+});
+
+progressSteps.forEach((step) => {
+  step.setAttribute("role", "button");
+  step.setAttribute("tabindex", "0");
+  step.addEventListener("click", () => goToWorkflowStep(step.dataset.step));
+  step.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      goToWorkflowStep(step.dataset.step);
+    }
+  });
+});
+
+dashboardModeToggle.addEventListener("click", () => {
+  setPresentationMode(!presentationModeEnabled);
+});
+
+prevStepButton.addEventListener("click", () => {
+  goToPresentationStep(activePresentationStepIndex - 1);
+});
+
+nextStepButton.addEventListener("click", () => {
+  goToPresentationStep(activePresentationStepIndex + 1);
 });
 
 analyzeButton.addEventListener("click", analyzeMission);
@@ -1477,3 +1602,4 @@ document.querySelector(".mission-map").addEventListener("click", () => {
 
 renderCustomEditor();
 setScenario("wildfire");
+setPresentationMode(true);

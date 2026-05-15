@@ -101,8 +101,48 @@ h2 {
   gap: 8px;
 }
 
+.topbar-actions {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
 .topbar-status {
   color: var(--muted);
+}
+
+.presentation-toolbar {
+  display: none;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 24px;
+  background: rgba(9, 18, 29, 0.92);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.18);
+}
+
+.presentation-mode .presentation-toolbar {
+  display: grid;
+}
+
+.presentation-step-summary {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.presentation-step-summary strong {
+  font-size: 18px;
+}
+
+.presentation-step-summary p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
 }
 
 .status-dot {
@@ -118,6 +158,11 @@ h2 {
   grid-template-columns: minmax(310px, 0.86fr) minmax(390px, 1fr) minmax(640px, 1.72fr);
   gap: clamp(28px, 2vw, 42px);
   align-items: start;
+}
+
+.presentation-mode .workspace-grid {
+  grid-template-columns: minmax(330px, 0.78fr) minmax(0, 1.78fr);
+  gap: clamp(28px, 2.4vw, 48px);
 }
 
 .workflow-rail,
@@ -139,6 +184,46 @@ h2 {
 
 .workflow-rail {
   --rail-accent: var(--phase-intake);
+}
+
+.presentation-mode .workflow-rail {
+  position: sticky;
+  top: 22px;
+  max-height: calc(100vh - 44px);
+  overflow: auto;
+}
+
+.presentation-mode .input-rail,
+.presentation-mode .output-rail {
+  display: contents;
+}
+
+.presentation-mode .input-rail::before,
+.presentation-mode .output-rail::before,
+.presentation-mode .input-rail > .column-header,
+.presentation-mode .output-rail > .column-header {
+  display: none;
+}
+
+.presentation-mode .panel {
+  display: none;
+}
+
+.presentation-mode .panel.active-step {
+  display: block;
+  grid-column: 2;
+  min-height: min(760px, calc(100vh - 190px));
+  align-self: start;
+}
+
+.presentation-mode .panel.active-step::after {
+  content: "Independent step card / 獨立步驟卡片";
+  position: absolute;
+  top: 14px;
+  right: 24px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .input-rail {
@@ -308,6 +393,10 @@ h2 {
   color: var(--muted);
 }
 
+.presentation-mode .progress-step {
+  cursor: pointer;
+}
+
 .progress-step span {
   display: grid;
   place-items: center;
@@ -343,6 +432,11 @@ h2 {
 .progress-step.blocked {
   border-color: rgba(255, 180, 79, 0.46);
   background: rgba(255, 180, 79, 0.09);
+}
+
+.progress-step.presentation-current {
+  border-color: rgba(214, 180, 255, 0.68);
+  box-shadow: inset 4px 0 0 var(--phase-command), 0 0 0 1px rgba(214, 180, 255, 0.08);
 }
 
 .guided-workflow {
@@ -1229,8 +1323,19 @@ select {
 }
 
 @media (max-width: 1280px) {
-  .workspace-grid {
+  .workspace-grid,
+  .presentation-mode .workspace-grid {
     grid-template-columns: 1fr;
+  }
+
+  .presentation-mode .workflow-rail {
+    position: static;
+    max-height: none;
+  }
+
+  .presentation-mode .panel.active-step {
+    grid-column: auto;
+    min-height: auto;
   }
 
   .workflow-rail,
@@ -1265,6 +1370,13 @@ select {
 
   .topbar {
     margin-bottom: 18px;
+  }
+
+  .topbar-actions,
+  .presentation-toolbar {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .workflow-rail,
