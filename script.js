@@ -36,6 +36,10 @@ const customSatelliteCount = document.getElementById("customSatelliteCount");
 const generateConstellationButton = document.getElementById("generateConstellationButton");
 const applyCustomConstellationButton = document.getElementById("applyCustomConstellationButton");
 const customSatelliteEditor = document.getElementById("customSatelliteEditor");
+const progressSteps = document.querySelectorAll(".progress-step");
+const scenarioFlowGrid = document.getElementById("scenarioFlowGrid");
+const businessValue = document.getElementById("businessValue");
+const expertIterations = document.getElementById("expertIterations");
 
 let activeScenario = "wildfire";
 let constructionResolved = false;
@@ -80,6 +84,50 @@ const osmMapViews = {
     status: "Live OpenStreetMap: Washington D.C. target / 免費即時地圖：華盛頓目標區"
   }
 };
+
+const scenarioFlowModels = {
+  wildfire: {
+    title: "Wildfire response / 森林大火應變",
+    nodes: [
+      ["Incident request / 災害需求", "User asks for imagery over a reported wildfire region. / 使用者輸入火災區域拍攝需求。"],
+      ["Resolve AOI + GSD / 解析區域與解析度", "System turns the place name into a regional AOI and proposes 3 m optical GSD. / 系統將地名轉為 AOI，並推導 3 m 光學 GSD。"],
+      ["Feasibility screen / 可行性篩選", "Access window, FOV, battery, payload fit, storage, and protected tasks are checked. / 檢查可見窗口、FOV、電量、酬載、儲存與既有任務。"],
+      ["Recommend asset / 建議衛星", "SAT-B is selected because it is safe, optical, and does not interrupt protected work. / 選出 SAT-B，因為它安全、光學符合、且不打斷既有任務。"],
+      ["Approve + export / 核准並匯出", "Operator releases bounded ADCS, payload, and downlink commands. / 操作員核准後釋出受控姿態、酬載與下行指令。"]
+    ]
+  },
+  construction: {
+    title: "Construction monitoring / 工地週期監測",
+    nodes: [
+      ["Recurring request / 週期需求", "Vendor asks for repeat images of a construction site. / 廠商要求週期拍攝工地。"],
+      ["Clarify location / 澄清位置", "If the site cannot become coordinates or AOI, planning pauses and asks for address or map AOI. / 若無法轉成座標或 AOI，系統暫停並要求地址或框選。"],
+      ["Set repeatability / 設定可比性", "Planner adds comparable lighting and low off-nadir constraints. / 規劃器加入相似光影與低離軸角限制。"],
+      ["Select cadence assets / 選擇週期資產", "Ten-satellite constellation is scored by revisit, battery, payload, and conflicts. / 依重訪、電量、酬載與衝突評估十顆衛星。"],
+      ["Approve recurring plan / 核准週期計畫", "Operator approves a reusable schedule without overriding protected tasks. / 操作員核准不覆蓋既有任務的週期計畫。"]
+    ]
+  }
+};
+
+const businessValueModels = {
+  wildfire: [
+    ["Buyer / 採購方", "Emergency agencies, disaster-response teams, insurers, and EO service brokers."],
+    ["Value promise / 價值主張", "Cuts time from natural-language incident report to a safe imaging plan while preserving existing satellite commitments."],
+    ["Proof metrics / 展示指標", "Time-to-first-image, post-task battery margin, protected-task compliance, and command auditability."]
+  ],
+  construction: [
+    ["Buyer / 採購方", "Construction owners, EPC contractors, lenders, insurers, and site analytics providers."],
+    ["Value promise / 價值主張", "Turns ambiguous site-monitoring demand into a repeatable imaging service with consistent lighting geometry."],
+    ["Proof metrics / 展示指標", "Cadence reliability, comparable sun/view angles, lower manual ordering cost, and recurring revenue potential."]
+  ]
+};
+
+const iterationReview = [
+  ["1", "UX clarity / 體驗清晰度", "Added a five-step operator progress path so judges always know where the mission is in the request-to-command workflow."],
+  ["2", "Business framing / 商業敘事", "Added buyer, value promise, and proof metrics so the demo explains why the product matters beyond the technical flow."],
+  ["3", "Satellite operations / 衛星操作合理性", "Kept command output behind operator approval and emphasized feasibility checks before ADCS, payload, or downlink commands appear."],
+  ["4", "Scenario usability / 情境可用性", "Added two scenario flow diagrams and preserved the construction clarification stop when a site cannot be geolocated."],
+  ["5", "Demo resilience / 展示穩定性", "Kept preset imagery, upload imagery, and free OpenStreetMap options so the Mission Area view works with or without paid map APIs."]
+];
 
 function mapAssetPath(file) {
   return window.location.protocol === "file:" ? `public/${file}` : `/${file}`;
@@ -880,6 +928,7 @@ function setScenario(nextScenario) {
     button.classList.toggle("active", button.dataset.scenario === nextScenario);
   });
   missionPrompt.value = scenarios[nextScenario].prompt;
+  renderNarrativePanels();
   resetPanels();
 
   if (nextScenario === "wildfire") {
@@ -914,9 +963,11 @@ function resetPanels() {
   planStatus.textContent = "Awaiting analysis / 等待分析";
   recommendedAsset.className = "recommended-asset empty-plan";
   recommendedAsset.innerHTML = "<span class=\"label\">Recommended asset / 最建議衛星</span><strong>Awaiting analysis / 等待分析</strong>";
+  updateWorkflowProgress("idle");
 }
 
 function renderDefinitionList(entries) {
+  intentSummary.parentElement.querySelectorAll(".api-note").forEach((note) => note.remove());
   intentSummary.innerHTML = entries
     .map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`)
     .join("");
@@ -1023,6 +1074,93 @@ function renderCommandBoundary() {
     .join("");
 }
 
+function updateWorkflowProgress(state) {
+  const completeByState = {
+    idle: [],
+    blocked: ["request"],
+    planned: ["request", "clarify", "plan"],
+    approved: ["request", "clarify", "plan", "approve", "export"]
+  };
+  const activeByState = {
+    idle: "request",
+    blocked: "clarify",
+    planned: "approve",
+    approved: "export"
+  };
+
+  const completed = new Set(completeByState[state] || []);
+  const active = activeByState[state] || "request";
+
+  progressSteps.forEach((step) => {
+    const key = step.dataset.step;
+    step.classList.toggle("complete", completed.has(key));
+    step.classList.toggle("active", key === active);
+    step.classList.toggle("blocked", state === "blocked" && key === "clarify");
+  });
+}
+
+function renderScenarioFlows() {
+  scenarioFlowGrid.innerHTML = Object.entries(scenarioFlowModels)
+    .map(
+      ([key, flow]) => `
+        <article class="scenario-flow ${key === activeScenario ? "active" : ""}">
+          <h3>${flow.title}</h3>
+          <div class="flow-line">
+            ${flow.nodes
+              .map(
+                ([title, detail], index) => `
+                  <div class="flow-node">
+                    <span>${index + 1}</span>
+                    <div>
+                      <strong>${title}</strong>
+                      <small>${detail}</small>
+                    </div>
+                  </div>
+                `
+              )
+              .join("")}
+          </div>
+        </article>
+      `
+    )
+    .join("");
+}
+
+function renderBusinessValue() {
+  businessValue.innerHTML = businessValueModels[activeScenario]
+    .map(
+      ([title, detail]) => `
+        <article class="value-item">
+          <h3>${title}</h3>
+          <p>${detail}</p>
+        </article>
+      `
+    )
+    .join("");
+}
+
+function renderExpertIterations() {
+  expertIterations.innerHTML = iterationReview
+    .map(
+      ([round, title, detail]) => `
+        <article class="iteration-item">
+          <span>${round}</span>
+          <div>
+            <strong>${title}</strong>
+            <p>${detail}</p>
+          </div>
+        </article>
+      `
+    )
+    .join("");
+}
+
+function renderNarrativePanels() {
+  renderScenarioFlows();
+  renderBusinessValue();
+  renderExpertIterations();
+}
+
 function renderWildfire() {
   const scenario = scenarios.wildfire;
   const customPlan = isCustomEnabled() ? buildCustomConstellationPlan("wildfire") : null;
@@ -1052,6 +1190,7 @@ function renderWildfire() {
   renderTimeline(planSource.timeline);
   renderCommandBoundary();
   activeCommandPacket = customPlan ? customPlan.command : scenario.command;
+  updateWorkflowProgress("planned");
   planStatus.textContent = customPlan
     ? customPlan.executable
       ? "Custom constellation plan ready / 自訂星系計畫可供審核"
@@ -1119,10 +1258,12 @@ function renderConstruction(resolved) {
   if (resolved) {
     renderRecommendedAsset(planSource.recommendedAsset);
     activeCommandPacket = customPlan ? customPlan.command : scenario.command;
+    updateWorkflowProgress("planned");
   } else {
     recommendedAsset.className = "recommended-asset empty-plan";
     recommendedAsset.innerHTML = "<span class=\"label\">Recommended asset / 最建議衛星</span><strong>Awaiting geolocation / 等待定位</strong>";
     activeCommandPacket = null;
+    updateWorkflowProgress("blocked");
   }
 
   planStatus.textContent = resolved
@@ -1234,6 +1375,7 @@ function approveMission() {
   commandStatus.textContent = "Released after operator approval / 經操作員批准後釋出";
   commandOutput.textContent = JSON.stringify(activeCommandPacket || scenarios[activeScenario].command, null, 2);
   exportButton.disabled = false;
+  updateWorkflowProgress("approved");
 }
 
 mapImageSelect.addEventListener("change", () => {

@@ -10,6 +10,34 @@
         </div>
       </header>
 
+      <section class="operator-progress" aria-label="Mission workflow progress">
+        <div class="progress-step active" data-step="request">
+          <span>1</span>
+          <strong>Request / 需求</strong>
+          <small>Natural language intake / 自然語言輸入</small>
+        </div>
+        <div class="progress-step" data-step="clarify">
+          <span>2</span>
+          <strong>Clarify / 澄清</strong>
+          <small>Target and intent validation / 目標與意圖檢查</small>
+        </div>
+        <div class="progress-step" data-step="plan">
+          <span>3</span>
+          <strong>Plan / 規劃</strong>
+          <small>Access, battery, payload, conflict / 可見性、電量、酬載、衝突</small>
+        </div>
+        <div class="progress-step" data-step="approve">
+          <span>4</span>
+          <strong>Approve / 核准</strong>
+          <small>Operator gate / 操作員閘門</small>
+        </div>
+        <div class="progress-step" data-step="export">
+          <span>5</span>
+          <strong>Export / 匯出</strong>
+          <small>Bounded command packet / 受控指令封包</small>
+        </div>
+      </section>
+
       <section class="workspace-grid">
         <section class="left-rail">
           <div class="panel mission-input">
@@ -113,6 +141,17 @@
             </div>
           </div>
 
+          <div class="panel scenario-flow-panel">
+            <div class="panel-heading">
+              <div>
+                <h2>Scenario Flow Diagrams / 情境使用流程圖</h2>
+                <p class="panel-subtitle">How each demo path turns intent into an operator-approved command packet. / 每個展示情境如何從意圖走到操作員核准指令。</p>
+              </div>
+              <span class="pill">Judge narrative / 評審敘事</span>
+            </div>
+            <div id="scenarioFlowGrid" class="scenario-flow-grid"></div>
+          </div>
+
           <div class="panel constellation-panel">
             <div class="panel-heading">
               <h2>Constellation Snapshot / 星系狀態</h2>
@@ -137,6 +176,22 @@
               <span class="pill">Structured intent / 結構化意圖</span>
             </div>
             <dl id="intentSummary" class="key-value-list"></dl>
+          </div>
+
+          <div class="panel value-panel">
+            <div class="panel-heading">
+              <h2>Product Value / 產品價值</h2>
+              <span class="pill">Commercial case / 商業案例</span>
+            </div>
+            <div id="businessValue" class="value-grid"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-heading">
+              <h2>Expert Iterations / 五輪專家迭代</h2>
+              <span class="pill muted">UX + Business + Ops / 體驗 + 商務 + 操作</span>
+            </div>
+            <div id="expertIterations" class="iteration-list"></div>
           </div>
 
           <div class="panel">
