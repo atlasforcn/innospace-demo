@@ -37,9 +37,13 @@ const generateConstellationButton = document.getElementById("generateConstellati
 const applyCustomConstellationButton = document.getElementById("applyCustomConstellationButton");
 const customSatelliteEditor = document.getElementById("customSatelliteEditor");
 const progressSteps = document.querySelectorAll(".progress-step");
+const workflowStateBadge = document.getElementById("workflowStateBadge");
+const workflowCalloutText = document.getElementById("workflowCalloutText");
+const guidedTaskList = document.getElementById("guidedTaskList");
 const scenarioFlowGrid = document.getElementById("scenarioFlowGrid");
 const businessValue = document.getElementById("businessValue");
 const expertIterations = document.getElementById("expertIterations");
+const noviceTests = document.getElementById("noviceTests");
 
 let activeScenario = "wildfire";
 let constructionResolved = false;
@@ -122,12 +126,84 @@ const businessValueModels = {
 };
 
 const iterationReview = [
-  ["1", "UX clarity / 體驗清晰度", "Added a five-step operator progress path so judges always know where the mission is in the request-to-command workflow."],
-  ["2", "Business framing / 商業敘事", "Added buyer, value promise, and proof metrics so the demo explains why the product matters beyond the technical flow."],
-  ["3", "Satellite operations / 衛星操作合理性", "Kept command output behind operator approval and emphasized feasibility checks before ADCS, payload, or downlink commands appear."],
-  ["4", "Scenario usability / 情境可用性", "Added two scenario flow diagrams and preserved the construction clarification stop when a site cannot be geolocated."],
-  ["5", "Demo resilience / 展示穩定性", "Kept preset imagery, upload imagery, and free OpenStreetMap options so the Mission Area view works with or without paid map APIs."]
+  ["1", "Operation zoning / 操作分區", "Grouped panels into numbered phases so the page reads as a guided operations desk instead of independent cards."],
+  ["2", "Next-action clarity / 下一步清楚度", "Added a task queue that tells the operator which action is active, done, blocked, or locked."],
+  ["3", "Failure vs. pause / 失敗與暫停區分", "Made unresolved construction targets a visible planning hold, not a silent failure."],
+  ["4", "Approval confidence / 批准信心", "Kept approve and export as explicit later steps so the operator understands when commands become available."],
+  ["5", "Demo narration / 展示敘事", "Kept business value and scenario flows, but visually separated them from the operational path so they support rather than interrupt the workflow."]
 ];
+
+const noviceTestReview = [
+  {
+    title: "Test 1: wildfire from a blank screen / 第一次：森林大火空白流程",
+    reaction: "The engineer found Analyze Request, but then read the right rail before noticing the map and constellation evidence.",
+    improvement: "Added numbered phase labels and an ordered task queue to direct attention from request to evidence to approval."
+  },
+  {
+    title: "Test 2: construction with vague target / 第二次：模糊工地位置",
+    reaction: "The engineer thought the system might have failed because no satellite plan appeared after analysis.",
+    improvement: "Changed this into a clear blocked workflow state: clarify target before planning continues."
+  },
+  {
+    title: "Test 3: approval and export / 第三次：批准與匯出",
+    reaction: "The engineer could approve the plan, but was not sure what approval unlocked.",
+    improvement: "The task queue now marks approve/export as distinct steps and the command panel stays visually separated as the final output."
+  }
+];
+
+const workflowTextByState = {
+  idle: {
+    badge: "Step 1 / 第一步",
+    text: "Start by selecting a scenario and analyzing the mission request. Optional constellation setup can be adjusted before analysis. / 先選情境並分析任務需求；自訂星系可在分析前調整。"
+  },
+  blocked: {
+    badge: "Blocked / 等待澄清",
+    text: "Planning is intentionally paused because the target cannot yet become coordinates or an AOI. / 系統刻意暫停，因為目標尚未能轉成座標或 AOI。"
+  },
+  planned: {
+    badge: "Review / 審核中",
+    text: "Review the mission area, constellation evidence, decision analysis, and recommended plan before approval. / 批准前請依序檢查任務區域、星系證據、決策分析與建議計畫。"
+  },
+  approved: {
+    badge: "Released / 已釋出",
+    text: "Operator approval has unlocked the bounded command packet for export. / 操作員批准後，受控指令封包已可匯出。"
+  }
+};
+
+const taskQueueByState = {
+  idle: [
+    ["done", "Select scenario / 選擇情境", "Use wildfire or construction as the demo path."],
+    ["active", "Review request / 檢查需求", "Edit the natural-language prompt if needed."],
+    ["pending", "Optional constellation / 可選星系", "Use defaults or apply custom satellite states."],
+    ["pending", "Analyze request / 分析需求", "Start target validation and planning."],
+    ["locked", "Review plan / 審核計畫", "Unlocked after analysis succeeds."],
+    ["locked", "Approve + export / 批准並匯出", "Unlocked only after a valid plan exists."]
+  ],
+  blocked: [
+    ["done", "Request analyzed / 需求已分析", "The system understood the mission intent."],
+    ["blocked", "Clarify target / 澄清目標", "Provide address, coordinates, or draw AOI."],
+    ["locked", "Access analysis / 可見性分析", "Waiting for a resolvable AOI."],
+    ["locked", "Satellite scoring / 衛星評分", "No spacecraft is tasked before geolocation."],
+    ["locked", "Approve plan / 批准計畫", "Approval stays disabled."],
+    ["locked", "Export commands / 匯出指令", "No command packet is generated yet."]
+  ],
+  planned: [
+    ["done", "Intent parsed / 意圖已解析", "Mission intent has been structured."],
+    ["done", "Target validated / 目標已驗證", "AOI and imaging need are available."],
+    ["active", "Review evidence / 檢查證據", "Check access, payload, battery, conflict, and FOV evidence."],
+    ["active", "Inspect plan / 檢查計畫", "Read the recommended satellite and ordered operation sequence."],
+    ["pending", "Approve plan / 批准計畫", "Operator approval is the next manual gate."],
+    ["locked", "Export commands / 匯出指令", "Locked until approval."]
+  ],
+  approved: [
+    ["done", "Intent parsed / 意圖已解析", "The request has been translated safely."],
+    ["done", "Evidence reviewed / 證據已審核", "Feasibility checks are visible."],
+    ["done", "Plan approved / 計畫已批准", "The operator gate has been passed."],
+    ["active", "Inspect packet / 檢查封包", "Review ADCS, payload, and downlink commands."],
+    ["active", "Export packet / 匯出封包", "Use export for the demo handoff."],
+    ["done", "Audit ready / 可供稽核", "Command boundary and safety rationale remain visible."]
+  ]
+};
 
 function mapAssetPath(file) {
   return window.location.protocol === "file:" ? `public/${file}` : `/${file}`;
@@ -1097,6 +1173,25 @@ function updateWorkflowProgress(state) {
     step.classList.toggle("active", key === active);
     step.classList.toggle("blocked", state === "blocked" && key === "clarify");
   });
+
+  renderGuidedTaskQueue(state);
+}
+
+function renderGuidedTaskQueue(state) {
+  const workflowText = workflowTextByState[state] || workflowTextByState.idle;
+  workflowStateBadge.textContent = workflowText.badge;
+  workflowCalloutText.textContent = workflowText.text;
+
+  guidedTaskList.innerHTML = (taskQueueByState[state] || taskQueueByState.idle)
+    .map(
+      ([status, title, detail], index) => `
+        <li class="guided-task ${status}" data-index="${index + 1}">
+          <strong>${title}</strong>
+          <p>${detail}</p>
+        </li>
+      `
+    )
+    .join("");
 }
 
 function renderScenarioFlows() {
@@ -1155,10 +1250,28 @@ function renderExpertIterations() {
     .join("");
 }
 
+function renderNoviceTests() {
+  noviceTests.innerHTML = noviceTestReview
+    .map(
+      ({ title, reaction, improvement }) => `
+        <article class="test-item">
+          <header>
+            <strong>${title}</strong>
+            <span class="test-outcome">Applied / 已納入</span>
+          </header>
+          <p><strong>Reaction / 反應：</strong>${reaction}</p>
+          <p><strong>Change / 修改：</strong>${improvement}</p>
+        </article>
+      `
+    )
+    .join("");
+}
+
 function renderNarrativePanels() {
   renderScenarioFlows();
   renderBusinessValue();
   renderExpertIterations();
+  renderNoviceTests();
 }
 
 function renderWildfire() {
