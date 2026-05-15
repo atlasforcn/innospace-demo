@@ -41,9 +41,6 @@ const workflowStateBadge = document.getElementById("workflowStateBadge");
 const workflowCalloutText = document.getElementById("workflowCalloutText");
 const guidedTaskList = document.getElementById("guidedTaskList");
 const scenarioFlowGrid = document.getElementById("scenarioFlowGrid");
-const businessValue = document.getElementById("businessValue");
-const expertIterations = document.getElementById("expertIterations");
-const noviceTests = document.getElementById("noviceTests");
 
 let activeScenario = "wildfire";
 let constructionResolved = false;
@@ -111,45 +108,6 @@ const scenarioFlowModels = {
     ]
   }
 };
-
-const businessValueModels = {
-  wildfire: [
-    ["Buyer / 採購方", "Emergency agencies, disaster-response teams, insurers, and EO service brokers."],
-    ["Value promise / 價值主張", "Cuts time from natural-language incident report to a safe imaging plan while preserving existing satellite commitments."],
-    ["Proof metrics / 展示指標", "Time-to-first-image, post-task battery margin, protected-task compliance, and command auditability."]
-  ],
-  construction: [
-    ["Buyer / 採購方", "Construction owners, EPC contractors, lenders, insurers, and site analytics providers."],
-    ["Value promise / 價值主張", "Turns ambiguous site-monitoring demand into a repeatable imaging service with consistent lighting geometry."],
-    ["Proof metrics / 展示指標", "Cadence reliability, comparable sun/view angles, lower manual ordering cost, and recurring revenue potential."]
-  ]
-};
-
-const iterationReview = [
-  ["1", "Operation zoning / 操作分區", "Grouped panels into numbered phases so the page reads as a guided operations desk instead of independent cards."],
-  ["2", "Next-action clarity / 下一步清楚度", "Added a task queue that tells the operator which action is active, done, blocked, or locked."],
-  ["3", "Failure vs. pause / 失敗與暫停區分", "Made unresolved construction targets a visible planning hold, not a silent failure."],
-  ["4", "Approval confidence / 批准信心", "Kept approve and export as explicit later steps so the operator understands when commands become available."],
-  ["5", "Demo narration / 展示敘事", "Kept business value and scenario flows, but visually separated them from the operational path so they support rather than interrupt the workflow."]
-];
-
-const noviceTestReview = [
-  {
-    title: "Test 1: wildfire from a blank screen / 第一次：森林大火空白流程",
-    reaction: "The engineer found Analyze Request, but then read the right rail before noticing the map and constellation evidence.",
-    improvement: "Added numbered phase labels and an ordered task queue to direct attention from request to evidence to approval."
-  },
-  {
-    title: "Test 2: construction with vague target / 第二次：模糊工地位置",
-    reaction: "The engineer thought the system might have failed because no satellite plan appeared after analysis.",
-    improvement: "Changed this into a clear blocked workflow state: clarify target before planning continues."
-  },
-  {
-    title: "Test 3: approval and export / 第三次：批准與匯出",
-    reaction: "The engineer could approve the plan, but was not sure what approval unlocked.",
-    improvement: "The task queue now marks approve/export as distinct steps and the command panel stays visually separated as the final output."
-  }
-];
 
 const workflowTextByState = {
   idle: {
@@ -1221,57 +1179,8 @@ function renderScenarioFlows() {
     .join("");
 }
 
-function renderBusinessValue() {
-  businessValue.innerHTML = businessValueModels[activeScenario]
-    .map(
-      ([title, detail]) => `
-        <article class="value-item">
-          <h3>${title}</h3>
-          <p>${detail}</p>
-        </article>
-      `
-    )
-    .join("");
-}
-
-function renderExpertIterations() {
-  expertIterations.innerHTML = iterationReview
-    .map(
-      ([round, title, detail]) => `
-        <article class="iteration-item">
-          <span>${round}</span>
-          <div>
-            <strong>${title}</strong>
-            <p>${detail}</p>
-          </div>
-        </article>
-      `
-    )
-    .join("");
-}
-
-function renderNoviceTests() {
-  noviceTests.innerHTML = noviceTestReview
-    .map(
-      ({ title, reaction, improvement }) => `
-        <article class="test-item">
-          <header>
-            <strong>${title}</strong>
-            <span class="test-outcome">Applied / 已納入</span>
-          </header>
-          <p><strong>Reaction / 反應：</strong>${reaction}</p>
-          <p><strong>Change / 修改：</strong>${improvement}</p>
-        </article>
-      `
-    )
-    .join("");
-}
-
 function renderNarrativePanels() {
   renderScenarioFlows();
-  renderBusinessValue();
-  renderExpertIterations();
-  renderNoviceTests();
 }
 
 function renderWildfire() {
