@@ -313,6 +313,24 @@ select {
   background-position: center, var(--map-position);
 }
 
+.osm-map-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  filter: saturate(0.86) contrast(1.02);
+}
+
+.mission-map.has-osm::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(180deg, rgba(7, 16, 25, 0.04), rgba(7, 16, 25, 0.48));
+  pointer-events: none;
+}
+
 .mission-map.idle::after {
   content: "Analysis results will appear here / 分析結果將顯示於此";
   position: absolute;
@@ -322,6 +340,7 @@ select {
   color: var(--muted);
   font-weight: 600;
   background: rgba(7, 16, 25, 0.34);
+  z-index: 8;
 }
 
 .clarification-box.empty-state {
@@ -331,6 +350,7 @@ select {
 .map-grid {
   position: absolute;
   inset: 0;
+  z-index: 2;
   background:
     radial-gradient(circle at 25% 62%, rgba(69, 198, 179, 0.08), transparent 20%),
     radial-gradient(circle at 70% 34%, rgba(104, 167, 255, 0.06), transparent 18%);
@@ -339,6 +359,7 @@ select {
 
 .map-target {
   position: absolute;
+  z-index: 4;
   display: grid;
   place-items: center;
   color: #04121a;
@@ -365,6 +386,7 @@ select {
 
 .track {
   position: absolute;
+  z-index: 3;
   width: 120%;
   height: 2px;
   background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.42), transparent);
@@ -391,6 +413,7 @@ select {
 
 .satellite {
   position: absolute;
+  z-index: 5;
   min-width: 76px;
   height: 38px;
   border-radius: 999px;
@@ -421,6 +444,7 @@ select {
 
 .aoi-hint {
   position: absolute;
+  z-index: 6;
   right: 18px;
   bottom: 18px;
   padding: 10px 12px;

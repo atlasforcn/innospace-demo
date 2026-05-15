@@ -94,6 +94,7 @@
               <label class="field-label" for="mapImageSelect">Map image source / 地圖影像來源</label>
               <select id="mapImageSelect">
                 <option value="auto">Auto by scenario / 依情境自動選擇</option>
+                <option value="osm">Live OpenStreetMap / 免費即時地圖</option>
                 <option value="wildfire">Rocky Mountain wildfire AOI / 落基山火場區域</option>
                 <option value="construction">Construction site monitoring / 工地監測區域</option>
                 <option value="washington">Washington D.C. urban target / 華盛頓城市目標</option>
@@ -106,6 +107,7 @@
             </div>
 
             <div class="mission-map idle">
+              <iframe id="osmMapFrame" class="osm-map-frame hidden" title="OpenStreetMap mission area"></iframe>
               <div class="map-grid"></div>
               <div id="mapTarget" class="map-target wildfire-target hidden">
                 <span>AOI</span>

@@ -16,6 +16,7 @@ const mapImageSelect = document.getElementById("mapImageSelect");
 const mapImageUpload = document.getElementById("mapImageUpload");
 const clearMapImageButton = document.getElementById("clearMapImageButton");
 const mapImageStatus = document.getElementById("mapImageStatus");
+const osmMapFrame = document.getElementById("osmMapFrame");
 const mapTracks = document.querySelectorAll(".track");
 const mapSatellites = document.querySelectorAll(".satellite");
 const constellationBadge = document.getElementById("constellationBadge");
@@ -62,6 +63,24 @@ const mapImagePresets = {
   }
 };
 
+const osmMapViews = {
+  wildfire: {
+    bbox: [-108.42, 38.25, -105.12, 40.05],
+    marker: [39.18, -106.82],
+    status: "Live OpenStreetMap: Rocky Mountain wildfire AOI / 免費即時地圖：落基山火場 AOI"
+  },
+  construction: {
+    bbox: [-77.08, 38.87, -77.0, 38.93],
+    marker: [38.8977, -77.0365],
+    status: "Live OpenStreetMap: resolved construction AOI / 免費即時地圖：已解析工地 AOI"
+  },
+  washington: {
+    bbox: [-77.16, 38.8, -76.88, 39.0],
+    marker: [38.9072, -77.0369],
+    status: "Live OpenStreetMap: Washington D.C. target / 免費即時地圖：華盛頓目標區"
+  }
+};
+
 function mapAssetPath(file) {
   return window.location.protocol === "file:" ? `public/${file}` : `/${file}`;
 }
@@ -72,16 +91,55 @@ function scenarioMapPreset(scenarioKey) {
 
 function clearMissionMapImage(status = "Auto scenario imagery / 自動情境底圖") {
   missionMap.classList.remove("has-image");
+  missionMap.classList.remove("has-osm");
   missionMap.style.removeProperty("--map-image");
   missionMap.style.removeProperty("--map-position");
+  osmMapFrame.classList.add("hidden");
+  osmMapFrame.removeAttribute("src");
   mapImageStatus.textContent = status;
+}
+
+function openStreetMapUrl(view) {
+  const bbox = view.bbox.join("%2C");
+  const marker = view.marker.join("%2C");
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${marker}`;
+}
+
+function applyOpenStreetMap(scenarioKey = activeScenario, options = {}) {
+  const viewKey = scenarioKey === "construction" ? "construction" : scenarioKey === "washington" ? "washington" : "wildfire";
+  const view = options.forceBlank ? null : osmMapViews[viewKey];
+
+  missionMap.classList.remove("has-image");
+  missionMap.style.removeProperty("--map-image");
+  missionMap.style.removeProperty("--map-position");
+
+  if (!view) {
+    missionMap.classList.remove("has-osm");
+    osmMapFrame.classList.add("hidden");
+    osmMapFrame.removeAttribute("src");
+    mapImageStatus.textContent = "OpenStreetMap waits for a resolved AOI / OpenStreetMap 等待 AOI 解析";
+    return;
+  }
+
+  missionMap.classList.add("has-osm");
+  osmMapFrame.src = openStreetMapUrl(view);
+  osmMapFrame.classList.remove("hidden");
+  mapImageStatus.textContent = view.status;
 }
 
 function applyMissionMapImage(scenarioKey = activeScenario, options = {}) {
   const forceBlankAuto = Boolean(options.forceBlankAuto);
 
+  if (selectedMapImageSource === "osm") {
+    applyOpenStreetMap(scenarioKey, { forceBlank: forceBlankAuto });
+    return;
+  }
+
   if (selectedMapImageSource === "upload") {
     if (uploadedMapImageUrl) {
+      missionMap.classList.remove("has-osm");
+      osmMapFrame.classList.add("hidden");
+      osmMapFrame.removeAttribute("src");
       missionMap.classList.add("has-image");
       missionMap.style.setProperty("--map-image", `url("${uploadedMapImageUrl}")`);
       missionMap.style.setProperty("--map-position", "center");
@@ -101,6 +159,9 @@ function applyMissionMapImage(scenarioKey = activeScenario, options = {}) {
     return;
   }
 
+  missionMap.classList.remove("has-osm");
+  osmMapFrame.classList.add("hidden");
+  osmMapFrame.removeAttribute("src");
   missionMap.classList.add("has-image");
   missionMap.style.setProperty("--map-image", `url("${mapAssetPath(preset.file)}")`);
   missionMap.style.setProperty("--map-position", preset.position);
