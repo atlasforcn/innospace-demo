@@ -81,6 +81,21 @@
               <span id="mapBadge" class="pill muted">Awaiting analysis / 等待分析</span>
             </div>
 
+            <div class="map-imagery-controls" aria-label="Map imagery controls">
+              <label class="field-label" for="mapImageSelect">Map image source / 地圖影像來源</label>
+              <select id="mapImageSelect">
+                <option value="auto">Auto by scenario / 依情境自動選擇</option>
+                <option value="wildfire">Rocky Mountain wildfire AOI / 落基山火場區域</option>
+                <option value="construction">Construction site monitoring / 工地監測區域</option>
+                <option value="washington">Washington D.C. urban target / 華盛頓城市目標</option>
+                <option value="upload">Uploaded image / 已上傳影像</option>
+              </select>
+              <label class="upload-button" for="mapImageUpload">Upload map image / 上傳地圖影像</label>
+              <input id="mapImageUpload" class="visually-hidden" type="file" accept="image/*" />
+              <button id="clearMapImageButton" class="ghost-button" type="button">Clear image / 清除影像</button>
+              <span id="mapImageStatus" class="map-image-status">Auto scenario imagery / 自動情境底圖</span>
+            </div>
+
             <div class="mission-map idle">
               <div class="map-grid"></div>
               <div id="mapTarget" class="map-target wildfire-target hidden">

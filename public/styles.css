@@ -28,6 +28,7 @@ body {
 
 button,
 input,
+select,
 textarea {
   font: inherit;
 }
@@ -158,13 +159,15 @@ h2 {
 .scenario-button,
 .primary-button,
 .secondary-button,
-.ghost-button {
+.ghost-button,
+.upload-button {
   border-radius: 8px;
   border: 1px solid var(--line);
   padding: 11px 14px;
   color: var(--text);
   background: rgba(255, 255, 255, 0.04);
   cursor: pointer;
+  text-align: center;
 }
 
 .scenario-button.active,
@@ -189,7 +192,8 @@ h2 {
 }
 
 textarea,
-input {
+input,
+select {
   width: 100%;
   border-radius: 8px;
   border: 1px solid var(--line);
@@ -207,6 +211,20 @@ textarea {
 input {
   padding: 12px 14px;
   margin-bottom: 12px;
+}
+
+select {
+  min-height: 44px;
+  padding: 10px 12px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 .button-row.compact {
@@ -245,16 +263,54 @@ input {
   color: var(--muted);
 }
 
+.map-imagery-controls {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto auto;
+  gap: 10px;
+  align-items: end;
+  margin: 14px 0;
+}
+
+.map-imagery-controls .field-label,
+.map-image-status {
+  grid-column: 1 / -1;
+}
+
+.map-imagery-controls .field-label {
+  margin-bottom: -4px;
+}
+
+.map-image-status {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.upload-button {
+  background: rgba(69, 198, 179, 0.11);
+  border-color: rgba(69, 198, 179, 0.34);
+}
+
 .mission-map {
   position: relative;
   overflow: hidden;
   min-height: 388px;
   border-radius: 8px;
   border: 1px solid var(--line);
+  --map-image: none;
+  --map-position: center;
   background:
     linear-gradient(135deg, rgba(15, 43, 64, 0.94), rgba(9, 24, 37, 0.96)),
     repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.02) 0 1px, transparent 1px 80px),
     repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.02) 0 1px, transparent 1px 80px);
+}
+
+.mission-map.has-image {
+  background-image:
+    linear-gradient(180deg, rgba(7, 16, 25, 0.06), rgba(7, 16, 25, 0.54)),
+    var(--map-image);
+  background-size: cover, cover;
+  background-position: center, var(--map-position);
 }
 
 .mission-map.idle::after {
@@ -278,6 +334,7 @@ input {
   background:
     radial-gradient(circle at 25% 62%, rgba(69, 198, 179, 0.08), transparent 20%),
     radial-gradient(circle at 70% 34%, rgba(104, 167, 255, 0.06), transparent 18%);
+  pointer-events: none;
 }
 
 .map-target {
@@ -723,9 +780,15 @@ input {
   .topbar,
   .panel-heading,
   .scenario-buttons,
-  .button-row {
+  .button-row,
+  .map-imagery-controls {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .map-imagery-controls {
+    display: grid;
+    grid-template-columns: 1fr;
   }
 
   h1 {

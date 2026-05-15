@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" role="img" aria-label="Synthetic Washington D.C. urban target mission area">
+  <defs>
+    <linearGradient id="city" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#53646b"/>
+      <stop offset="0.55" stop-color="#66746f"/>
+      <stop offset="1" stop-color="#344351"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="700" fill="url(#city)"/>
+  <path d="M112 700 C190 610 220 520 198 425 C176 327 214 245 330 190 C438 138 498 82 515 0 H650 C620 112 555 192 440 255 C352 303 330 355 350 425 C382 540 330 640 250 700 Z" fill="#406b7b" opacity="0.88"/>
+  <path d="M136 700 C220 608 242 516 222 430 C198 326 238 262 344 212 C440 166 515 95 540 0" fill="none" stroke="#9cd8e6" stroke-width="6" opacity="0.3"/>
+  <g stroke="#d6d9cd" stroke-width="8" stroke-opacity="0.32">
+    <path d="M30 92 H1180"/>
+    <path d="M10 176 H1160"/>
+    <path d="M0 260 H1200"/>
+    <path d="M40 344 H1180"/>
+    <path d="M0 428 H1200"/>
+    <path d="M30 512 H1160"/>
+    <path d="M0 596 H1200"/>
+    <path d="M92 -20 V720"/>
+    <path d="M184 -20 V720"/>
+    <path d="M276 -20 V720"/>
+    <path d="M368 -20 V720"/>
+    <path d="M460 -20 V720"/>
+    <path d="M552 -20 V720"/>
+    <path d="M644 -20 V720"/>
+    <path d="M736 -20 V720"/>
+    <path d="M828 -20 V720"/>
+    <path d="M920 -20 V720"/>
+    <path d="M1012 -20 V720"/>
+    <path d="M1104 -20 V720"/>
+  </g>
+  <g stroke="#f4ead0" stroke-width="13" stroke-opacity="0.42">
+    <path d="M265 638 L965 54"/>
+    <path d="M220 70 L1035 620"/>
+    <path d="M545 658 L888 22"/>
+  </g>
+  <g fill="#26343b" opacity="0.72">
+    <rect x="690" y="182" width="86" height="62" transform="rotate(-8 690 182)"/>
+    <rect x="788" y="252" width="112" height="80" transform="rotate(-8 788 252)"/>
+    <rect x="585" y="365" width="116" height="78" transform="rotate(-8 585 365)"/>
+    <rect x="904" y="396" width="138" height="92" transform="rotate(-8 904 396)"/>
+    <rect x="472" y="490" width="92" height="68" transform="rotate(-8 472 490)"/>
+  </g>
+  <g>
+    <ellipse cx="654" cy="356" rx="118" ry="78" fill="none" stroke="#ffce77" stroke-width="5" stroke-dasharray="13 11"/>
+    <path d="M654 305 L666 344 L708 344 L674 368 L688 408 L654 382 L620 408 L634 368 L600 344 L642 344 Z" fill="#ffce77" opacity="0.86"/>
+  </g>
+  <rect x="0" y="0" width="1200" height="700" fill="none" stroke="#ffffff" stroke-opacity="0.14" stroke-width="2"/>
+</svg>

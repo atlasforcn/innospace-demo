@@ -12,6 +12,10 @@ const mapBadge = document.getElementById("mapBadge");
 const mapTarget = document.getElementById("mapTarget");
 const aoiHint = document.getElementById("aoiHint");
 const missionMap = document.querySelector(".mission-map");
+const mapImageSelect = document.getElementById("mapImageSelect");
+const mapImageUpload = document.getElementById("mapImageUpload");
+const clearMapImageButton = document.getElementById("clearMapImageButton");
+const mapImageStatus = document.getElementById("mapImageStatus");
 const mapTracks = document.querySelectorAll(".track");
 const mapSatellites = document.querySelectorAll(".satellite");
 const constellationBadge = document.getElementById("constellationBadge");
@@ -36,6 +40,91 @@ let activeScenario = "wildfire";
 let constructionResolved = false;
 let approved = false;
 let activeCommandPacket = null;
+let selectedMapImageSource = "auto";
+let uploadedMapImageUrl = null;
+let uploadedMapImageName = "";
+
+const mapImagePresets = {
+  wildfire: {
+    file: "images/mission-area-wildfire.svg",
+    status: "Preset: Rocky Mountain wildfire AOI / 預存：落基山火場 AOI",
+    position: "center"
+  },
+  construction: {
+    file: "images/mission-area-construction.svg",
+    status: "Preset: construction monitoring site / 預存：工地監測區域",
+    position: "center"
+  },
+  washington: {
+    file: "images/mission-area-washington.svg",
+    status: "Preset: Washington D.C. urban target / 預存：華盛頓城市目標",
+    position: "center"
+  }
+};
+
+function mapAssetPath(file) {
+  return window.location.protocol === "file:" ? `public/${file}` : `/${file}`;
+}
+
+function scenarioMapPreset(scenarioKey) {
+  return scenarioKey === "construction" ? "construction" : "wildfire";
+}
+
+function clearMissionMapImage(status = "Auto scenario imagery / 自動情境底圖") {
+  missionMap.classList.remove("has-image");
+  missionMap.style.removeProperty("--map-image");
+  missionMap.style.removeProperty("--map-position");
+  mapImageStatus.textContent = status;
+}
+
+function applyMissionMapImage(scenarioKey = activeScenario, options = {}) {
+  const forceBlankAuto = Boolean(options.forceBlankAuto);
+
+  if (selectedMapImageSource === "upload") {
+    if (uploadedMapImageUrl) {
+      missionMap.classList.add("has-image");
+      missionMap.style.setProperty("--map-image", `url("${uploadedMapImageUrl}")`);
+      missionMap.style.setProperty("--map-position", "center");
+      mapImageStatus.textContent = `Uploaded: ${uploadedMapImageName} / 已上傳影像`;
+      return;
+    }
+
+    clearMissionMapImage("No uploaded image selected / 尚未選擇上傳影像");
+    return;
+  }
+
+  const presetKey = selectedMapImageSource === "auto" ? (forceBlankAuto ? null : scenarioMapPreset(scenarioKey)) : selectedMapImageSource;
+  const preset = presetKey ? mapImagePresets[presetKey] : null;
+
+  if (!preset) {
+    clearMissionMapImage();
+    return;
+  }
+
+  missionMap.classList.add("has-image");
+  missionMap.style.setProperty("--map-image", `url("${mapAssetPath(preset.file)}")`);
+  missionMap.style.setProperty("--map-position", preset.position);
+  mapImageStatus.textContent = preset.status;
+}
+
+function updateMapImageFromCurrentState() {
+  if (missionMap.classList.contains("idle")) {
+    if (selectedMapImageSource === "auto") {
+      clearMissionMapImage();
+      return;
+    }
+
+    applyMissionMapImage(activeScenario);
+    return;
+  }
+
+  if (activeScenario === "construction" && !constructionResolved) {
+    applyMissionMapImage(activeScenario, { forceBlankAuto: true });
+    return;
+  }
+
+  applyMissionMapImage(activeScenario);
+}
 
 const suitabilityModel = [
   {
@@ -750,6 +839,7 @@ function resetPanels() {
   constellationBadge.className = "pill muted";
   constellationBadge.textContent = "Awaiting analysis / 等待分析";
   missionMap.classList.add("idle");
+  updateMapImageFromCurrentState();
   mapTarget.classList.add("hidden");
   mapTracks.forEach((track) => track.classList.add("hidden"));
   mapSatellites.forEach((satellite) => satellite.classList.add("hidden"));
@@ -878,6 +968,7 @@ function renderWildfire() {
   const planSource = customPlan || scenario;
 
   missionMap.classList.remove("idle");
+  applyMissionMapImage("wildfire");
   mapBadge.className = "pill";
   constellationBadge.className = "pill";
   mapTarget.className = "map-target wildfire-target";
@@ -913,6 +1004,7 @@ function renderConstruction(resolved) {
   const planSource = customPlan || scenario;
 
   missionMap.classList.remove("idle");
+  applyMissionMapImage("construction", { forceBlankAuto: !resolved });
   constellationBadge.className = "pill";
   constellationBadge.textContent = customPlan ? customPlan.constellationLabel : scenario.constellation;
   mapTarget.classList.remove("hidden");
@@ -1082,6 +1174,39 @@ function approveMission() {
   commandOutput.textContent = JSON.stringify(activeCommandPacket || scenarios[activeScenario].command, null, 2);
   exportButton.disabled = false;
 }
+
+mapImageSelect.addEventListener("change", () => {
+  selectedMapImageSource = mapImageSelect.value;
+  updateMapImageFromCurrentState();
+});
+
+mapImageUpload.addEventListener("change", () => {
+  const [file] = mapImageUpload.files;
+  if (!file) return;
+
+  if (uploadedMapImageUrl) {
+    URL.revokeObjectURL(uploadedMapImageUrl);
+  }
+
+  uploadedMapImageUrl = URL.createObjectURL(file);
+  uploadedMapImageName = file.name;
+  selectedMapImageSource = "upload";
+  mapImageSelect.value = "upload";
+  updateMapImageFromCurrentState();
+});
+
+clearMapImageButton.addEventListener("click", () => {
+  if (uploadedMapImageUrl) {
+    URL.revokeObjectURL(uploadedMapImageUrl);
+  }
+
+  uploadedMapImageUrl = null;
+  uploadedMapImageName = "";
+  mapImageUpload.value = "";
+  selectedMapImageSource = "auto";
+  mapImageSelect.value = "auto";
+  updateMapImageFromCurrentState();
+});
 
 scenarioButtons.forEach((button) => {
   button.addEventListener("click", () => setScenario(button.dataset.scenario));
