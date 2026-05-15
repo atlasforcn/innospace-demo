@@ -112,17 +112,44 @@ h2 {
 
 .workspace-grid {
   display: grid;
-  grid-template-columns: 340px minmax(560px, 1fr) 430px;
+  grid-template-columns: minmax(280px, 0.85fr) minmax(340px, 1fr) minmax(560px, 1.65fr);
   gap: 18px;
   margin-top: 18px;
 }
 
-.left-rail,
-.center-stage,
-.right-rail {
+.workflow-rail,
+.input-rail,
+.output-rail {
   display: grid;
   gap: 18px;
   align-content: start;
+}
+
+.column-header {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: start;
+  min-height: 92px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  background: rgba(9, 18, 29, 0.88);
+}
+
+.column-header h2 {
+  margin-bottom: 6px;
+}
+
+.column-header p,
+.input-helper {
+  margin-bottom: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.input-helper {
+  margin: -2px 0 14px;
 }
 
 .panel {
@@ -217,7 +244,10 @@ h2 {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
-  margin-top: 18px;
+}
+
+.workflow-rail .operator-progress {
+  grid-template-columns: 1fr;
 }
 
 .progress-step {
@@ -274,7 +304,10 @@ h2 {
   display: grid;
   grid-template-columns: minmax(280px, 0.9fr) minmax(520px, 1.6fr);
   gap: 14px;
-  margin-top: 14px;
+}
+
+.workflow-rail .guided-workflow {
+  grid-template-columns: 1fr;
 }
 
 .workflow-callout,
@@ -324,6 +357,10 @@ h2 {
   overflow: hidden;
 }
 
+.workflow-rail .guided-task-list {
+  grid-template-columns: 1fr;
+}
+
 .guided-task {
   position: relative;
   display: grid;
@@ -333,8 +370,18 @@ h2 {
   border-right: 1px solid var(--line);
 }
 
+.workflow-rail .guided-task {
+  min-height: auto;
+  border-right: 0;
+  border-bottom: 1px solid var(--line);
+}
+
 .guided-task:last-child {
   border-right: 0;
+}
+
+.workflow-rail .guided-task:last-child {
+  border-bottom: 0;
 }
 
 .guided-task::before {
@@ -527,6 +574,10 @@ select {
   gap: 10px;
   align-items: end;
   margin: 14px 0;
+}
+
+.input-rail .map-imagery-controls {
+  grid-template-columns: 1fr;
 }
 
 .map-imagery-controls .field-label,
@@ -734,6 +785,10 @@ select {
   margin-bottom: 14px;
 }
 
+.input-rail .custom-controls {
+  grid-template-columns: 1fr;
+}
+
 .custom-controls .field-label {
   grid-column: 1 / -1;
   margin-bottom: -4px;
@@ -797,6 +852,10 @@ select {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+}
+
+.workflow-rail .scenario-flow-grid {
+  grid-template-columns: 1fr;
 }
 
 .scenario-flow {

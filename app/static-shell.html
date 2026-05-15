@@ -1,4 +1,4 @@
-<main class="app-shell">
+    <main class="app-shell">
       <header class="topbar">
         <div>
           <p class="eyebrow">Universal Mission Abstraction Layer / 通用任務抽象層</p>
@@ -10,47 +10,75 @@
         </div>
       </header>
 
-      <section class="operator-progress" aria-label="Mission workflow progress">
-        <div class="progress-step active" data-step="request">
-          <span>1</span>
-          <strong>Request / 需求</strong>
-          <small>Natural language intake / 自然語言輸入</small>
-        </div>
-        <div class="progress-step" data-step="clarify">
-          <span>2</span>
-          <strong>Clarify / 澄清</strong>
-          <small>Target and intent validation / 目標與意圖檢查</small>
-        </div>
-        <div class="progress-step" data-step="plan">
-          <span>3</span>
-          <strong>Plan / 規劃</strong>
-          <small>Access, battery, payload, conflict / 可見性、電量、酬載、衝突</small>
-        </div>
-        <div class="progress-step" data-step="approve">
-          <span>4</span>
-          <strong>Approve / 核准</strong>
-          <small>Operator gate / 操作員閘門</small>
-        </div>
-        <div class="progress-step" data-step="export">
-          <span>5</span>
-          <strong>Export / 匯出</strong>
-          <small>Bounded command packet / 受控指令封包</small>
-        </div>
-      </section>
-
-      <section class="guided-workflow" aria-label="Guided operator workflow">
-        <div class="workflow-callout">
-          <span id="workflowStateBadge" class="phase-chip">Step 1 / 第一步</span>
-          <div>
-            <h2>Operator Task Queue / 操作員任務順序</h2>
-            <p id="workflowCalloutText">Start with a mission request, then let the system validate, plan, and wait for operator approval. / 先輸入任務需求，再讓系統驗證、規劃，最後等待操作員批准。</p>
-          </div>
-        </div>
-        <ol id="guidedTaskList" class="guided-task-list"></ol>
-      </section>
-
       <section class="workspace-grid">
-        <section class="left-rail">
+        <section class="workflow-rail">
+          <div class="column-header">
+            <span class="phase-chip">Column 1 / 第一欄</span>
+            <div>
+              <h2>Flow & Order / 流程與順序</h2>
+              <p>Use this column as the operating script. / 這欄就是操作順序提示。</p>
+            </div>
+          </div>
+
+          <section class="operator-progress" aria-label="Mission workflow progress">
+            <div class="progress-step active" data-step="request">
+              <span>1</span>
+              <strong>Request / 需求</strong>
+              <small>Natural language intake / 自然語言輸入</small>
+            </div>
+            <div class="progress-step" data-step="clarify">
+              <span>2</span>
+              <strong>Clarify / 澄清</strong>
+              <small>Target and intent validation / 目標與意圖檢查</small>
+            </div>
+            <div class="progress-step" data-step="plan">
+              <span>3</span>
+              <strong>Plan / 規劃</strong>
+              <small>Access, battery, payload, conflict / 可見性、電量、酬載、衝突</small>
+            </div>
+            <div class="progress-step" data-step="approve">
+              <span>4</span>
+              <strong>Approve / 核准</strong>
+              <small>Operator gate / 操作員閘門</small>
+            </div>
+            <div class="progress-step" data-step="export">
+              <span>5</span>
+              <strong>Export / 匯出</strong>
+              <small>Bounded command packet / 受控指令封包</small>
+            </div>
+          </section>
+
+          <section class="guided-workflow" aria-label="Guided operator workflow">
+            <div class="workflow-callout">
+              <span id="workflowStateBadge" class="phase-chip">Step 1 / 第一步</span>
+              <div>
+                <h2>Operator Task Queue / 操作員任務順序</h2>
+                <p id="workflowCalloutText">Start with a mission request, then let the system validate, plan, and wait for operator approval. / 先輸入任務需求，再讓系統驗證、規劃，最後等待操作員批准。</p>
+              </div>
+            </div>
+            <ol id="guidedTaskList" class="guided-task-list"></ol>
+          </section>
+
+          <div class="panel scenario-flow-panel phase-reference" data-phase-label="Scenario Route / 情境路徑">
+            <div class="panel-heading">
+              <div>
+                <h2>Scenario Flow Diagrams / 情境使用流程圖</h2>
+                <p class="panel-subtitle">Reference path for each demo scenario. / 每個展示情境的參考路徑。</p>
+              </div>
+            </div>
+            <div id="scenarioFlowGrid" class="scenario-flow-grid"></div>
+          </div>
+        </section>
+
+        <section class="input-rail">
+          <div class="column-header">
+            <span class="phase-chip">Column 2 / 第二欄</span>
+            <div>
+              <h2>Input & Controls / 輸入與控制</h2>
+              <p>Everything the operator can change before results are generated. / 操作員可以修改的內容集中在這裡。</p>
+            </div>
+          </div>
+
           <div class="panel mission-input phase-intake" data-phase-label="01 Intake / 任務輸入">
             <div class="panel-heading">
               <h2>Mission Request / 任務需求</h2>
@@ -64,6 +92,7 @@
 
             <label class="field-label" for="missionPrompt">Prompt / 輸入需求</label>
             <textarea id="missionPrompt" rows="5"></textarea>
+            <p class="input-helper">Describe the target, urgency, payload need, and cadence in plain language. / 用自然語言描述目標、急迫性、酬載需求與拍攝週期。</p>
 
             <div class="button-row">
               <button id="analyzeButton" class="primary-button">Analyze Request / 分析需求</button>
@@ -75,6 +104,7 @@
               <h2>Custom Constellation / 自訂衛星星系</h2>
               <span class="pill muted">Test setup / 測試設定</span>
             </div>
+            <p class="input-helper">Use the defaults for a smooth demo, or adjust satellites when you want to prove the planner respects battery, payload, and status constraints. / 展示時可用預設值；若要驗證規劃器會遵守電量、酬載與狀態限制，可改自訂衛星。</p>
             <label class="toggle-row">
               <input id="customConstellationToggle" type="checkbox" />
               <span>Use custom constellation for analysis / 使用自訂星系分析</span>
@@ -90,11 +120,35 @@
             </div>
           </div>
 
+          <div class="panel phase-setup" data-phase-label="03 Display Setup / 顯示設定">
+            <div class="panel-heading">
+              <h2>Mission Area Display / 任務區域顯示</h2>
+              <span class="pill muted">Map source / 地圖來源</span>
+            </div>
+            <p class="input-helper">Choose a preset, upload a screenshot, or use free OpenStreetMap for the mission area view. / 可選預存圖、上傳截圖，或使用免費 OpenStreetMap。</p>
+            <div class="map-imagery-controls" aria-label="Map imagery controls">
+              <label class="field-label" for="mapImageSelect">Map image source / 地圖影像來源</label>
+              <select id="mapImageSelect">
+                <option value="auto">Auto by scenario / 依情境自動選擇</option>
+                <option value="osm">Live OpenStreetMap / 免費即時地圖</option>
+                <option value="wildfire">Rocky Mountain wildfire AOI / 落基山火場區域</option>
+                <option value="construction">Construction site monitoring / 工地監測區域</option>
+                <option value="washington">Washington D.C. urban target / 華盛頓城市目標</option>
+                <option value="upload">Uploaded image / 已上傳影像</option>
+              </select>
+              <label class="upload-button" for="mapImageUpload">Upload map image / 上傳地圖影像</label>
+              <input id="mapImageUpload" class="visually-hidden" type="file" accept="image/*" />
+              <button id="clearMapImageButton" class="ghost-button" type="button">Clear image / 清除影像</button>
+              <span id="mapImageStatus" class="map-image-status">Auto scenario imagery / 自動情境底圖</span>
+            </div>
+          </div>
+
           <div class="panel phase-validate" data-phase-label="03 Clarify / 需求澄清">
             <div class="panel-heading">
               <h2>Clarification Channel / 需求澄清</h2>
               <span class="pill muted">Input validation / 輸入檢查</span>
             </div>
+            <p class="input-helper">If the target cannot become coordinates or an AOI, this area becomes the next required input. / 如果目標無法轉成座標或 AOI，這裡會成為下一個必要輸入。</p>
             <div id="clarificationBox" class="clarification-box empty-state">
               <strong>Awaiting analysis / 等待分析。</strong>
               <p>Submit a mission request to begin target validation and clarification. / 請先送出任務需求，系統才會開始檢查與澄清。</p>
@@ -110,30 +164,30 @@
           </div>
         </section>
 
-        <section class="center-stage">
-          <div class="panel mission-map-panel phase-area" data-phase-label="04 Mission Area / 任務區域">
+        <section class="output-rail">
+          <div class="column-header">
+            <span class="phase-chip">Column 3 / 第三欄</span>
+            <div>
+              <h2>Generated Output / 系統輸出</h2>
+              <p>Results appear here after analysis and approval. / 分析與批准後的結果集中在這裡。</p>
+            </div>
+          </div>
+
+          <div class="panel phase-interpret" data-phase-label="04 Intent Model / 意圖模型">
+            <div class="panel-heading">
+              <h2>Mission Abstraction / 任務抽象化</h2>
+              <span class="pill">Structured intent / 結構化意圖</span>
+            </div>
+            <dl id="intentSummary" class="key-value-list"></dl>
+          </div>
+
+          <div class="panel mission-map-panel phase-area" data-phase-label="05 Mission Area / 任務區域">
             <div class="panel-heading map-heading">
               <div>
                 <h2>Mission Area & Access Opportunities / 任務區域與可觀測機會</h2>
                 <p id="mapCaption">No mission area has been analyzed yet. / 尚未開始任務區域分析。</p>
               </div>
               <span id="mapBadge" class="pill muted">Awaiting analysis / 等待分析</span>
-            </div>
-
-            <div class="map-imagery-controls" aria-label="Map imagery controls">
-              <label class="field-label" for="mapImageSelect">Map image source / 地圖影像來源</label>
-              <select id="mapImageSelect">
-                <option value="auto">Auto by scenario / 依情境自動選擇</option>
-                <option value="osm">Live OpenStreetMap / 免費即時地圖</option>
-                <option value="wildfire">Rocky Mountain wildfire AOI / 落基山火場區域</option>
-                <option value="construction">Construction site monitoring / 工地監測區域</option>
-                <option value="washington">Washington D.C. urban target / 華盛頓城市目標</option>
-                <option value="upload">Uploaded image / 已上傳影像</option>
-              </select>
-              <label class="upload-button" for="mapImageUpload">Upload map image / 上傳地圖影像</label>
-              <input id="mapImageUpload" class="visually-hidden" type="file" accept="image/*" />
-              <button id="clearMapImageButton" class="ghost-button" type="button">Clear image / 清除影像</button>
-              <span id="mapImageStatus" class="map-image-status">Auto scenario imagery / 自動情境底圖</span>
             </div>
 
             <div class="mission-map idle">
@@ -152,18 +206,7 @@
             </div>
           </div>
 
-          <div class="panel scenario-flow-panel phase-reference" data-phase-label="Reference / 情境路徑">
-            <div class="panel-heading">
-              <div>
-                <h2>Scenario Flow Diagrams / 情境使用流程圖</h2>
-                <p class="panel-subtitle">How each demo path turns intent into an operator-approved command packet. / 每個展示情境如何從意圖走到操作員核准指令。</p>
-              </div>
-              <span class="pill">Judge narrative / 評審敘事</span>
-            </div>
-            <div id="scenarioFlowGrid" class="scenario-flow-grid"></div>
-          </div>
-
-          <div class="panel constellation-panel phase-evaluate" data-phase-label="05 Asset Evaluation / 衛星評估">
+          <div class="panel constellation-panel phase-evaluate" data-phase-label="06 Asset Evaluation / 衛星評估">
             <div class="panel-heading">
               <h2>Constellation Snapshot / 星系狀態</h2>
               <span id="constellationBadge" class="pill muted">Awaiting analysis / 等待分析</span>
@@ -171,25 +214,15 @@
             <div id="satelliteCards" class="satellite-card-grid"></div>
           </div>
 
-          <div class="panel suitability-panel phase-evaluate" data-phase-label="05 Planning Criteria / 規劃準則">
+          <div class="panel suitability-panel phase-evaluate" data-phase-label="07 Planning Criteria / 規劃準則">
             <div class="panel-heading">
               <h2>Suitability Factors / 任務適配指標</h2>
               <span class="pill muted">Planning model / 規劃模型</span>
             </div>
             <div id="suitabilityMatrix" class="suitability-grid"></div>
           </div>
-        </section>
 
-        <section class="right-rail">
-          <div class="panel phase-interpret" data-phase-label="06 Intent Model / 意圖模型">
-            <div class="panel-heading">
-              <h2>Mission Abstraction / 任務抽象化</h2>
-              <span class="pill">Structured intent / 結構化意圖</span>
-            </div>
-            <dl id="intentSummary" class="key-value-list"></dl>
-          </div>
-
-          <div class="panel phase-evaluate" data-phase-label="07 Decision / 決策分析">
+          <div class="panel phase-evaluate" data-phase-label="08 Decision / 決策分析">
             <div class="panel-heading">
               <h2>Decision Analysis / 決策分析</h2>
               <span class="pill">Constraint solver / 約束判斷</span>
@@ -197,7 +230,7 @@
             <div id="decisionTable" class="decision-table"></div>
           </div>
 
-          <div class="panel phase-approve" data-phase-label="08 Approve / 任務批准">
+          <div class="panel phase-approve" data-phase-label="09 Approve / 任務批准">
             <div class="panel-heading">
               <h2>Recommended Mission Plan / 建議任務計畫</h2>
               <span id="planStatus" class="pill muted">Awaiting analysis / 等待分析</span>
@@ -212,7 +245,7 @@
             </div>
           </div>
 
-          <div class="panel command-panel phase-command" data-phase-label="09 Command Packet / 指令封包">
+          <div class="panel command-panel phase-command" data-phase-label="10 Command Packet / 指令封包">
             <div class="panel-heading">
               <h2>Machine Command Packet / 機器指令封包</h2>
               <span id="commandStatus" class="pill muted">Locked until approval / 核准前鎖定</span>
