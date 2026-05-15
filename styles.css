@@ -381,20 +381,26 @@ h2 {
 }
 
 .progress-step {
+  appearance: none;
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 4px 10px;
   align-items: center;
+  width: 100%;
   min-height: 94px;
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 16px;
   background: rgba(255, 255, 255, 0.04);
   color: var(--muted);
+  text-align: left;
 }
 
 .presentation-mode .progress-step {
   cursor: pointer;
+  min-height: auto;
+  padding: 12px;
+  grid-template-columns: 34px 1fr;
 }
 
 .progress-step span {
@@ -408,6 +414,11 @@ h2 {
   color: var(--text);
   background: rgba(255, 255, 255, 0.04);
   font-weight: 800;
+}
+
+.presentation-mode .progress-step span {
+  width: 28px;
+  height: 28px;
 }
 
 .progress-step strong {

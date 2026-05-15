@@ -36,7 +36,7 @@ const customSatelliteCount = document.getElementById("customSatelliteCount");
 const generateConstellationButton = document.getElementById("generateConstellationButton");
 const applyCustomConstellationButton = document.getElementById("applyCustomConstellationButton");
 const customSatelliteEditor = document.getElementById("customSatelliteEditor");
-const progressSteps = document.querySelectorAll(".progress-step");
+const operatorProgress = document.querySelector(".operator-progress");
 const workflowStateBadge = document.getElementById("workflowStateBadge");
 const workflowCalloutText = document.getElementById("workflowCalloutText");
 const guidedTaskList = document.getElementById("guidedTaskList");
@@ -58,19 +58,76 @@ let uploadedMapImageUrl = null;
 let uploadedMapImageName = "";
 let activePresentationStepIndex = 0;
 let presentationModeEnabled = true;
+let currentWorkflowState = "idle";
+let progressSteps = [];
 
-const presentationStepKeys = [
-  "request",
-  "request",
-  "request",
-  "clarify",
-  "clarify",
-  "plan",
-  "plan",
-  "plan",
-  "plan",
-  "approve",
-  "export"
+const presentationSteps = [
+  {
+    key: "request",
+    phase: "01",
+    title: "Mission Request / 任務需求",
+    detail: "Select scenario, edit intent, then analyze. / 選情境、確認需求，按分析。"
+  },
+  {
+    key: "request",
+    phase: "02",
+    title: "Constellation Setup / 星系設定",
+    detail: "Optional custom satellite count, payload, orbit, battery, and status. / 可選自訂衛星數量、酬載、軌道、電量與狀態。"
+  },
+  {
+    key: "request",
+    phase: "03",
+    title: "Map Source / 地圖來源",
+    detail: "Choose preset, upload image, or use OpenStreetMap. / 選預設圖、上傳圖或 OpenStreetMap。"
+  },
+  {
+    key: "clarify",
+    phase: "04",
+    title: "Clarification / 需求澄清",
+    detail: "Stop when a target cannot become coordinates or AOI. / 目標無法轉座標或 AOI 時先停在這裡。"
+  },
+  {
+    key: "clarify",
+    phase: "05",
+    title: "Intent Model / 意圖模型",
+    detail: "Structured interpretation from natural language. / 自然語言轉成結構化任務意圖。"
+  },
+  {
+    key: "plan",
+    phase: "06",
+    title: "Mission Area / 任務區域",
+    detail: "AOI, target marker, orbit tracks, and access opportunities. / 顯示 AOI、目標、軌跡與可觀測機會。"
+  },
+  {
+    key: "plan",
+    phase: "07",
+    title: "Asset Evaluation / 衛星評估",
+    detail: "Satellite status, payload, battery, and task conflict evidence. / 衛星狀態、酬載、電量與任務衝突證據。"
+  },
+  {
+    key: "plan",
+    phase: "08",
+    title: "Planning Criteria / 規劃準則",
+    detail: "Explain what the planner is allowed to optimize and reject. / 說明規劃器如何判斷可行與不可行。"
+  },
+  {
+    key: "plan",
+    phase: "09",
+    title: "Decision Analysis / 決策分析",
+    detail: "Readable constraint decisions before approval. / 批准前可解釋的約束判斷。"
+  },
+  {
+    key: "approve",
+    phase: "10",
+    title: "Recommended Mission Plan / 建議任務計畫",
+    detail: "Operator reviews the selected satellite and ordered operations. / 操作員檢查建議衛星與操作序列。"
+  },
+  {
+    key: "export",
+    phase: "11",
+    title: "Command Packet / 指令封包",
+    detail: "Approved ADCS, payload, and data commands stay inside the command boundary. / 已批准的姿態、酬載與資料指令維持在邊界內。"
+  }
 ];
 
 const workflowStepToPanel = {
@@ -214,6 +271,43 @@ function stepHintFromPanel(panel) {
   return helper?.textContent?.trim() || "Review this card before moving to the next step. / 檢查這張卡片後再進入下一步。";
 }
 
+function renderPresentationFlow() {
+  operatorProgress.innerHTML = presentationSteps
+    .map(
+      ({ key, phase, title, detail }, index) => `
+        <button class="progress-step" type="button" data-step="${key}" data-panel-index="${index}">
+          <span>${phase}</span>
+          <strong>${title}</strong>
+          <small>${detail}</small>
+        </button>
+      `
+    )
+    .join("");
+
+  progressSteps = Array.from(operatorProgress.querySelectorAll(".progress-step"));
+  progressSteps.forEach((step) => {
+    step.addEventListener("click", () => goToPresentationStep(Number(step.dataset.panelIndex)));
+  });
+}
+
+function syncPresentationFlowClasses(state) {
+  const progressByState = {
+    idle: { completeThrough: -1, activeIndex: activePresentationStepIndex },
+    blocked: { completeThrough: 2, activeIndex: 3, blockedIndex: 3 },
+    planned: { completeThrough: 8, activeIndex: 9 },
+    approved: { completeThrough: 10, activeIndex: 10 }
+  };
+  const progress = progressByState[state] || progressByState.idle;
+
+  progressSteps.forEach((step) => {
+    const index = Number(step.dataset.panelIndex);
+    step.classList.toggle("complete", index <= progress.completeThrough);
+    step.classList.toggle("active", index === progress.activeIndex);
+    step.classList.toggle("blocked", index === progress.blockedIndex);
+    step.classList.toggle("presentation-current", index === activePresentationStepIndex);
+  });
+}
+
 function updatePresentationStep() {
   if (!presentationPanels.length) return;
 
@@ -226,8 +320,9 @@ function updatePresentationStep() {
   });
 
   const activePanel = presentationPanels[activePresentationStepIndex];
-  const title = activePanel.querySelector(".panel-heading h2")?.textContent?.trim() || "Mission step / 任務步驟";
-  const label = activePanel.dataset.phaseLabel || `Step ${activePresentationStepIndex + 1}`;
+  const step = presentationSteps[activePresentationStepIndex];
+  const title = activePanel.querySelector(".panel-heading h2")?.textContent?.trim() || step.title;
+  const label = activePanel.dataset.phaseLabel || `${step.phase} ${step.title}`;
 
   currentStepBadge.textContent = `Step ${activePresentationStepIndex + 1} of ${presentationPanels.length} / 第 ${activePresentationStepIndex + 1} 步，共 ${presentationPanels.length} 步`;
   currentStepTitle.textContent = `${label} · ${title}`;
@@ -236,10 +331,7 @@ function updatePresentationStep() {
   prevStepButton.disabled = activePresentationStepIndex === 0;
   nextStepButton.disabled = activePresentationStepIndex === presentationPanels.length - 1;
 
-  const stepKey = presentationStepKeys[activePresentationStepIndex];
-  progressSteps.forEach((step) => {
-    step.classList.toggle("presentation-current", step.dataset.step === stepKey);
-  });
+  syncPresentationFlowClasses(currentWorkflowState);
 }
 
 function goToPresentationStep(index) {
@@ -1050,6 +1142,7 @@ function setScenario(nextScenario) {
   approved = false;
   approveButton.disabled = true;
   exportButton.disabled = true;
+  exportButton.textContent = "Export Command Packet / 匯出指令封包";
   commandStatus.textContent = "Locked until approval / 核准前鎖定";
   commandOutput.textContent = "Approve a validated plan to reveal the execution packet.\n/ 批准已驗證的任務計畫後，系統才會展開執行指令。";
   scenarioButtons.forEach((button) => {
@@ -1206,29 +1299,8 @@ function renderCommandBoundary() {
 }
 
 function updateWorkflowProgress(state) {
-  const completeByState = {
-    idle: [],
-    blocked: ["request"],
-    planned: ["request", "clarify", "plan"],
-    approved: ["request", "clarify", "plan", "approve", "export"]
-  };
-  const activeByState = {
-    idle: "request",
-    blocked: "clarify",
-    planned: "approve",
-    approved: "export"
-  };
-
-  const completed = new Set(completeByState[state] || []);
-  const active = activeByState[state] || "request";
-
-  progressSteps.forEach((step) => {
-    const key = step.dataset.step;
-    step.classList.toggle("complete", completed.has(key));
-    step.classList.toggle("active", key === active);
-    step.classList.toggle("blocked", state === "blocked" && key === "clarify");
-  });
-
+  currentWorkflowState = state;
+  syncPresentationFlowClasses(state);
   renderGuidedTaskQueue(state);
 }
 
@@ -1445,6 +1517,7 @@ function appendLlmIntentSummary(result) {
 async function analyzeMission() {
   approved = false;
   exportButton.disabled = true;
+  exportButton.textContent = "Export Command Packet / 匯出指令封包";
   activeCommandPacket = null;
   commandStatus.textContent = "Locked until approval / 核准前鎖定";
   commandOutput.textContent = "Approve a validated plan to reveal the execution packet.\n/ 批准已驗證的任務計畫後，系統才會展開執行指令。";
@@ -1454,23 +1527,26 @@ async function analyzeMission() {
   if (activeScenario === "wildfire") {
     renderWildfire();
     approveButton.disabled = !activeCommandPacket;
-    appendLlmIntentSummary(await llmPromise);
     goToPresentationStep(4);
+    appendLlmIntentSummary(await llmPromise);
+    updatePresentationStep();
     return;
   }
 
   if (!constructionResolved) {
     renderConstruction(false);
     approveButton.disabled = true;
-    appendLlmIntentSummary(await llmPromise);
     goToPresentationStep(3);
+    appendLlmIntentSummary(await llmPromise);
+    updatePresentationStep();
     return;
   }
 
   renderConstruction(true);
   approveButton.disabled = !activeCommandPacket;
-  appendLlmIntentSummary(await llmPromise);
   goToPresentationStep(4);
+  appendLlmIntentSummary(await llmPromise);
+  updatePresentationStep();
 }
 
 function resolveConstructionTarget(mode) {
@@ -1498,6 +1574,16 @@ function approveMission() {
   commandOutput.textContent = JSON.stringify(activeCommandPacket || scenarios[activeScenario].command, null, 2);
   exportButton.disabled = false;
   updateWorkflowProgress("approved");
+  goToPresentationStep(10);
+}
+
+function exportCommandPacket() {
+  if (exportButton.disabled) {
+    return;
+  }
+
+  commandStatus.textContent = "Export simulated for demo / 展示用匯出已完成";
+  exportButton.textContent = "Packet Exported / 指令已匯出";
   goToPresentationStep(10);
 }
 
@@ -1538,18 +1624,6 @@ scenarioButtons.forEach((button) => {
   button.addEventListener("click", () => setScenario(button.dataset.scenario));
 });
 
-progressSteps.forEach((step) => {
-  step.setAttribute("role", "button");
-  step.setAttribute("tabindex", "0");
-  step.addEventListener("click", () => goToWorkflowStep(step.dataset.step));
-  step.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      goToWorkflowStep(step.dataset.step);
-    }
-  });
-});
-
 dashboardModeToggle.addEventListener("click", () => {
   setPresentationMode(!presentationModeEnabled);
 });
@@ -1564,6 +1638,7 @@ nextStepButton.addEventListener("click", () => {
 
 analyzeButton.addEventListener("click", analyzeMission);
 approveButton.addEventListener("click", approveMission);
+exportButton.addEventListener("click", exportCommandPacket);
 resolveAddressButton.addEventListener("click", () => {
   if (!addressInput.value.trim()) {
     addressInput.focus();
@@ -1592,6 +1667,7 @@ customConstellationToggle.addEventListener("change", () => {
 drawAoiButton.addEventListener("click", () => {
   aoiHint.classList.remove("hidden");
   mapCaption.textContent = "AOI drawing mode active. Click the map to confirm the construction site boundary. / 已進入 AOI 框選模式，請點擊地圖確認工地範圍。";
+  goToPresentationStep(5);
 });
 
 document.querySelector(".mission-map").addEventListener("click", () => {
@@ -1600,6 +1676,7 @@ document.querySelector(".mission-map").addEventListener("click", () => {
   }
 });
 
+renderPresentationFlow();
 renderCustomEditor();
 setScenario("wildfire");
 setPresentationMode(true);
