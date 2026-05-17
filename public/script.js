@@ -17,8 +17,8 @@ const mapImageUpload = document.getElementById("mapImageUpload");
 const clearMapImageButton = document.getElementById("clearMapImageButton");
 const mapImageStatus = document.getElementById("mapImageStatus");
 const osmMapFrame = document.getElementById("osmMapFrame");
-const mapTracks = document.querySelectorAll(".track");
-const mapSatellites = document.querySelectorAll(".satellite");
+let mapTracks = Array.from(document.querySelectorAll(".track"));
+let mapSatellites = Array.from(document.querySelectorAll(".satellite"));
 const constellationBadge = document.getElementById("constellationBadge");
 const satelliteCards = document.getElementById("satelliteCards");
 const suitabilityMatrix = document.getElementById("suitabilityMatrix");
@@ -179,6 +179,36 @@ const mapImagePresets = {
     position: "center"
   }
 };
+
+const mapSatellitePositions = [
+  { top: "12%", left: "14%" },
+  { top: "42%", left: "70%" },
+  { top: "68%", left: "24%" },
+  { top: "24%", left: "50%" },
+  { top: "56%", left: "50%" },
+  { top: "76%", left: "64%" },
+  { top: "34%", left: "24%" },
+  { top: "18%", left: "76%" },
+  { top: "78%", left: "40%" },
+  { top: "48%", left: "11%" },
+  { top: "10%", left: "38%" },
+  { top: "64%", left: "82%" }
+];
+
+const mapTrackGeometries = [
+  { top: "22%", rotate: "12deg" },
+  { top: "46%", rotate: "-8deg" },
+  { top: "70%", rotate: "16deg" },
+  { top: "32%", rotate: "-18deg" },
+  { top: "58%", rotate: "7deg" },
+  { top: "82%", rotate: "-13deg" },
+  { top: "15%", rotate: "25deg" },
+  { top: "38%", rotate: "20deg" },
+  { top: "63%", rotate: "-24deg" },
+  { top: "76%", rotate: "3deg" },
+  { top: "27%", rotate: "-3deg" },
+  { top: "52%", rotate: "28deg" }
+];
 
 const osmMapViews = {
   wildfire: {
@@ -486,6 +516,59 @@ function updateMapImageFromCurrentState() {
   }
 
   applyMissionMapImage(activeScenario);
+}
+
+function mapAssetNamesFromPlan(planSource, fallbackNames = []) {
+  const cards = planSource?.cards || planSource?.satellites || [];
+  const cardNames = cards.map((card) => card.name).filter(Boolean);
+  return cardNames.length ? cardNames : fallbackNames;
+}
+
+function selectedAssetNamesFromPlan(planSource) {
+  return planSource?.command?.selected_assets || [];
+}
+
+function clearMapAssetLayer() {
+  mapTracks.forEach((track) => track.remove());
+  mapSatellites.forEach((satellite) => satellite.remove());
+  mapTracks = [];
+  mapSatellites = [];
+}
+
+function renderMapAssets(assetNames = [], selectedAssetNames = [], visible = true) {
+  clearMapAssetLayer();
+
+  if (!assetNames.length) {
+    return;
+  }
+
+  const selectedSet = new Set(selectedAssetNames);
+
+  mapTracks = assetNames.map((name, index) => {
+    const geometry = mapTrackGeometries[index % mapTrackGeometries.length];
+    const track = document.createElement("div");
+    track.className = `track${visible ? "" : " hidden"}`;
+    track.style.top = geometry.top;
+    track.style.left = "-8%";
+    track.style.transform = `rotate(${geometry.rotate})`;
+    track.style.width = "116%";
+    track.dataset.sat = name;
+    missionMap.append(track);
+    return track;
+  });
+
+  mapSatellites = assetNames.map((name, index) => {
+    const position = mapSatellitePositions[index % mapSatellitePositions.length];
+    const satellite = document.createElement("button");
+    satellite.type = "button";
+    satellite.className = `satellite${selectedSet.has(name) ? " selected" : ""}${visible ? "" : " hidden"}`;
+    satellite.dataset.sat = name;
+    satellite.style.top = position.top;
+    satellite.style.left = position.left;
+    satellite.textContent = name;
+    missionMap.append(satellite);
+    return satellite;
+  });
 }
 
 const suitabilityModel = [
@@ -1207,8 +1290,7 @@ function resetPanels() {
   missionMap.classList.add("idle");
   updateMapImageFromCurrentState();
   mapTarget.classList.add("hidden");
-  mapTracks.forEach((track) => track.classList.add("hidden"));
-  mapSatellites.forEach((satellite) => satellite.classList.add("hidden"));
+  renderMapAssets([]);
   aoiHint.classList.add("hidden");
   intentSummary.innerHTML = "";
   satelliteCards.innerHTML = "";
@@ -1396,8 +1478,7 @@ function renderWildfire() {
   constellationBadge.className = "pill";
   mapTarget.className = "map-target wildfire-target";
   mapTarget.innerHTML = "<span>AOI</span>";
-  mapTracks.forEach((track) => track.classList.remove("hidden"));
-  mapSatellites.forEach((satellite) => satellite.classList.remove("hidden"));
+  renderMapAssets(mapAssetNamesFromPlan(planSource, ["SAT-A", "SAT-B", "SAT-C"]), selectedAssetNamesFromPlan(planSource), true);
   clarificationBox.className = "clarification-box ready";
   clarificationBox.innerHTML = "<strong>Ready / 已就緒。</strong><p>The target phrase can be resolved into a wildfire search AOI, so the system can proceed into imaging requirements and tasking analysis. / 系統能將該地名轉成火災搜尋 AOI，因此可進入成像需求與任務分析。</p>";
   mapCaption.textContent = customPlan
@@ -1439,8 +1520,11 @@ function renderConstruction(resolved) {
   if (resolved) {
     mapTarget.className = "map-target construction-target";
     mapTarget.innerHTML = "<span>AOI</span>";
-    mapTracks.forEach((track) => track.classList.remove("hidden"));
-    mapSatellites.forEach((satellite) => satellite.classList.remove("hidden"));
+    renderMapAssets(
+      mapAssetNamesFromPlan(planSource, ["SAT-01", "SAT-03", "SAT-06", "SAT-08"]),
+      selectedAssetNamesFromPlan(planSource),
+      true
+    );
     mapCaption.textContent = customPlan
       ? "Custom constellation is being evaluated against the resolved construction AOI. / 正以自訂星系評估已解析工地 AOI。"
       : "Construction site AOI resolved and ready for recurring monitoring. / 工地 AOI 已解析，可進入週期性監測。";
@@ -1448,8 +1532,7 @@ function renderConstruction(resolved) {
   } else {
     mapTarget.className = "map-target construction-target";
     mapTarget.innerHTML = "<span>?</span>";
-    mapTracks.forEach((track) => track.classList.add("hidden"));
-    mapSatellites.forEach((satellite) => satellite.classList.add("hidden"));
+    renderMapAssets([]);
     clarificationBox.className = "clarification-box warning";
     clarificationBox.innerHTML = "<strong>Clarification required / 需要補充資訊。</strong><p>\"This site\" cannot be converted into GPS coordinates or an AOI. Please provide an address, coordinates, or define the site on the map. / 這個描述無法直接轉成 GPS 或 AOI，請補充地址、座標，或在地圖上框選。</p>";
     mapCaption.textContent = "Planning is paused until the construction site is geolocated. / 在工地位置被解析前，系統暫停往下規劃。";
