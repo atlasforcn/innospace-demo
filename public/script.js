@@ -47,7 +47,20 @@ const nextStepButton = document.getElementById("nextStepButton");
 const currentStepBadge = document.getElementById("currentStepBadge");
 const currentStepTitle = document.getElementById("currentStepTitle");
 const currentStepHint = document.getElementById("currentStepHint");
-const presentationPanels = Array.from(document.querySelectorAll(".input-rail .panel, .output-rail .panel"));
+const presentationPanelSelectors = [
+  ".mission-input",
+  ".phase-validate",
+  ".phase-interpret",
+  ".mission-map-panel",
+  ".constellation-panel",
+  ".suitability-panel",
+  ".decision-panel",
+  ".mission-plan-panel",
+  ".command-panel",
+  ".custom-constellation-panel",
+  ".map-source-panel"
+];
+const presentationPanels = presentationPanelSelectors.map((selector) => document.querySelector(selector)).filter(Boolean);
 
 let activeScenario = "wildfire";
 let constructionResolved = false;
@@ -65,77 +78,88 @@ const presentationSteps = [
   {
     key: "request",
     phase: "01",
-    title: "Mission Request / 任務需求",
-    detail: "Select scenario, edit intent, then analyze. / 選情境、確認需求，按分析。"
+    group: "Mission Flow / 任務流程",
+    title: "Mission Intake / 任務輸入",
+    detail: "Operator receives natural-language intent, then starts analysis. / 操作員接收自然語言任務並啟動分析。"
   },
   {
-    key: "request",
+    key: "clarify",
     phase: "02",
-    title: "Constellation Setup / 星系設定",
-    detail: "Optional custom satellite count, payload, orbit, battery, and status. / 可選自訂衛星數量、酬載、軌道、電量與狀態。"
+    group: "Mission Flow / 任務流程",
+    title: "Target Gate / 目標檢核",
+    detail: "Geocode, AOI, and GSD must be clear before any spacecraft tasking. / 必須先確認座標、AOI 與 GSD，才可進入衛星任務規劃。"
   },
   {
-    key: "request",
+    key: "clarify",
     phase: "03",
-    title: "Map Source / 地圖來源",
-    detail: "Choose preset, upload image, or use OpenStreetMap. / 選預設圖、上傳圖或 OpenStreetMap。"
+    group: "Mission Flow / 任務流程",
+    title: "Mission Requirements / 任務需求模型",
+    detail: "Translate intent into payload, cadence, urgency, and safety policy. / 將意圖轉成酬載、週期、急迫性與安全策略。"
   },
   {
-    key: "clarify",
+    key: "plan",
     phase: "04",
-    title: "Clarification / 需求澄清",
-    detail: "Stop when a target cannot become coordinates or AOI. / 目標無法轉座標或 AOI 時先停在這裡。"
+    group: "Mission Flow / 任務流程",
+    title: "AOI & Access / 區域與可見性",
+    detail: "Show where the target is and when spacecraft can observe it. / 顯示目標區域與衛星可觀測窗口。"
   },
   {
-    key: "clarify",
+    key: "plan",
     phase: "05",
-    title: "Intent Model / 意圖模型",
-    detail: "Structured interpretation from natural language. / 自然語言轉成結構化任務意圖。"
+    group: "Mission Flow / 任務流程",
+    title: "Fleet Readiness / 衛星可用性",
+    detail: "Check payload, battery, current attitude state, storage, and existing tasks. / 檢查酬載、電量、姿態狀態、儲存與既有任務。"
   },
   {
     key: "plan",
     phase: "06",
-    title: "Mission Area / 任務區域",
-    detail: "AOI, target marker, orbit tracks, and access opportunities. / 顯示 AOI、目標、軌跡與可觀測機會。"
+    group: "Mission Flow / 任務流程",
+    title: "Feasibility Rules / 可行性規則",
+    detail: "Explain the planning constraints before showing a recommendation. / 在推薦前先說明任務規劃約束。"
   },
   {
     key: "plan",
     phase: "07",
-    title: "Asset Evaluation / 衛星評估",
-    detail: "Satellite status, payload, battery, and task conflict evidence. / 衛星狀態、酬載、電量與任務衝突證據。"
+    group: "Mission Flow / 任務流程",
+    title: "Candidate Decision / 候選決策",
+    detail: "Compare candidates and show why each one is accepted, traded off, or rejected. / 比較候選衛星並說明接受、取捨或拒絕原因。"
   },
   {
     key: "plan",
     phase: "08",
-    title: "Planning Criteria / 規劃準則",
-    detail: "Explain what the planner is allowed to optimize and reject. / 說明規劃器如何判斷可行與不可行。"
-  },
-  {
-    key: "plan",
-    phase: "09",
-    title: "Decision Analysis / 決策分析",
-    detail: "Readable constraint decisions before approval. / 批准前可解釋的約束判斷。"
-  },
-  {
-    key: "approve",
-    phase: "10",
-    title: "Recommended Mission Plan / 建議任務計畫",
-    detail: "Operator reviews the selected satellite and ordered operations. / 操作員檢查建議衛星與操作序列。"
+    group: "Mission Flow / 任務流程",
+    title: "Plan & Approval / 計畫與批准",
+    detail: "Operator reviews timeline and confirms the plan before commands are released. / 操作員審核時序並批准後才釋出指令。"
   },
   {
     key: "export",
-    phase: "11",
+    phase: "09",
+    group: "Mission Flow / 任務流程",
     title: "Command Packet / 指令封包",
-    detail: "Approved ADCS, payload, and data commands stay inside the command boundary. / 已批准的姿態、酬載與資料指令維持在邊界內。"
+    detail: "Only approved ADCS, payload, and data commands are exposed for export. / 只顯示已批准的姿態、酬載與資料指令。"
+  },
+  {
+    key: "setup",
+    phase: "A",
+    group: "Demo Setup / 展示設定",
+    title: "Fleet Sandbox / 星系沙盒",
+    detail: "Optional demo-only constellation edits for what-if testing. / 展示用自訂星系，供情境測試。"
+  },
+  {
+    key: "setup",
+    phase: "B",
+    group: "Demo Setup / 展示設定",
+    title: "Map Display / 地圖顯示",
+    detail: "Optional visualization source; it does not change flight tasking. / 可選視覺化底圖，不改變飛行任務。"
   }
 ];
 
 const workflowStepToPanel = {
   request: 0,
-  clarify: 3,
-  plan: 5,
-  approve: 9,
-  export: 10
+  clarify: 1,
+  plan: 3,
+  approve: 7,
+  export: 8
 };
 
 const mapImagePresets = {
@@ -272,15 +296,21 @@ function stepHintFromPanel(panel) {
 }
 
 function renderPresentationFlow() {
+  let currentGroup = "";
   operatorProgress.innerHTML = presentationSteps
     .map(
-      ({ key, phase, title, detail }, index) => `
-        <button class="progress-step" type="button" data-step="${key}" data-panel-index="${index}">
-          <span>${phase}</span>
-          <strong>${title}</strong>
-          <small>${detail}</small>
-        </button>
-      `
+      ({ key, phase, group, title, detail }, index) => {
+        const groupLabel = group !== currentGroup ? `<div class="flow-section-label">${group}</div>` : "";
+        currentGroup = group;
+        return `
+          ${groupLabel}
+          <button class="progress-step" type="button" data-step="${key}" data-panel-index="${index}">
+            <span>${phase}</span>
+            <strong>${title}</strong>
+            <small>${detail}</small>
+          </button>
+        `;
+      }
     )
     .join("");
 
@@ -292,18 +322,21 @@ function renderPresentationFlow() {
 
 function syncPresentationFlowClasses(state) {
   const progressByState = {
-    idle: { completeThrough: -1, activeIndex: activePresentationStepIndex },
-    blocked: { completeThrough: 2, activeIndex: 3, blockedIndex: 3 },
-    planned: { completeThrough: 8, activeIndex: 9 },
-    approved: { completeThrough: 10, activeIndex: 10 }
+    idle: { completeThrough: -1, availableThrough: 0 },
+    blocked: { completeThrough: 0, availableThrough: 1, blockedIndex: 1 },
+    planned: { completeThrough: 7, availableThrough: 7 },
+    approved: { completeThrough: 8, availableThrough: 8 },
+    exported: { completeThrough: 8, availableThrough: 8 }
   };
   const progress = progressByState[state] || progressByState.idle;
 
   progressSteps.forEach((step) => {
     const index = Number(step.dataset.panelIndex);
+    const setup = presentationSteps[index]?.key === "setup";
     step.classList.toggle("complete", index <= progress.completeThrough);
-    step.classList.toggle("active", index === progress.activeIndex);
+    step.classList.toggle("active", index === activePresentationStepIndex);
     step.classList.toggle("blocked", index === progress.blockedIndex);
+    step.classList.toggle("locked", !setup && index > progress.availableThrough);
     step.classList.toggle("presentation-current", index === activePresentationStepIndex);
   });
 }
@@ -1527,7 +1560,7 @@ async function analyzeMission() {
   if (activeScenario === "wildfire") {
     renderWildfire();
     approveButton.disabled = !activeCommandPacket;
-    goToPresentationStep(4);
+    goToPresentationStep(1);
     appendLlmIntentSummary(await llmPromise);
     updatePresentationStep();
     return;
@@ -1536,7 +1569,7 @@ async function analyzeMission() {
   if (!constructionResolved) {
     renderConstruction(false);
     approveButton.disabled = true;
-    goToPresentationStep(3);
+    goToPresentationStep(1);
     appendLlmIntentSummary(await llmPromise);
     updatePresentationStep();
     return;
@@ -1544,7 +1577,7 @@ async function analyzeMission() {
 
   renderConstruction(true);
   approveButton.disabled = !activeCommandPacket;
-  goToPresentationStep(4);
+  goToPresentationStep(2);
   appendLlmIntentSummary(await llmPromise);
   updatePresentationStep();
 }
@@ -1574,7 +1607,7 @@ function approveMission() {
   commandOutput.textContent = JSON.stringify(activeCommandPacket || scenarios[activeScenario].command, null, 2);
   exportButton.disabled = false;
   updateWorkflowProgress("approved");
-  goToPresentationStep(10);
+  goToPresentationStep(8);
 }
 
 function exportCommandPacket() {
@@ -1584,7 +1617,8 @@ function exportCommandPacket() {
 
   commandStatus.textContent = "Export simulated for demo / 展示用匯出已完成";
   exportButton.textContent = "Packet Exported / 指令已匯出";
-  goToPresentationStep(10);
+  updateWorkflowProgress("exported");
+  goToPresentationStep(8);
 }
 
 mapImageSelect.addEventListener("change", () => {
@@ -1667,7 +1701,7 @@ customConstellationToggle.addEventListener("change", () => {
 drawAoiButton.addEventListener("click", () => {
   aoiHint.classList.remove("hidden");
   mapCaption.textContent = "AOI drawing mode active. Click the map to confirm the construction site boundary. / 已進入 AOI 框選模式，請點擊地圖確認工地範圍。";
-  goToPresentationStep(5);
+  goToPresentationStep(3);
 });
 
 document.querySelector(".mission-map").addEventListener("click", () => {
