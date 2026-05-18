@@ -122,15 +122,14 @@
               <h2>Mission Area Display / 任務區域顯示</h2>
               <span class="pill muted">Map source / 地圖來源</span>
             </div>
-            <p class="input-helper">Choose a preset, upload a screenshot, or use free OpenStreetMap for the mission area view. / 可選預存圖、上傳截圖，或使用免費 OpenStreetMap。</p>
+            <p class="input-helper">The selected scenario controls the location. Auto mode tries Google first, then a free map, then the simplified scenario image. / 情境會決定地點；自動模式會先試 Google，再試免費地圖，最後切到簡化情境圖。</p>
             <div class="map-imagery-controls" aria-label="Map imagery controls">
               <label class="field-label" for="mapImageSelect">Map image source / 地圖影像來源</label>
               <select id="mapImageSelect">
-                <option value="auto">Auto by scenario / 依情境自動選擇</option>
-                <option value="osm">Live OpenStreetMap / 免費即時地圖</option>
-                <option value="wildfire">Rocky Mountain wildfire AOI / 落基山火場區域</option>
-                <option value="construction">Construction site monitoring / 工地監測區域</option>
-                <option value="washington">Washington D.C. urban target / 華盛頓城市目標</option>
+                <option value="auto">Auto: Google → free map → simplified / 自動：Google → 免費地圖 → 簡化圖</option>
+                <option value="google">Google Maps for current scenario / Google 地圖：目前情境</option>
+                <option value="osm">Free map for current scenario / 免費地圖：目前情境</option>
+                <option value="simple">Simplified scenario image / 簡化情境圖片</option>
                 <option value="upload">Uploaded image / 已上傳影像</option>
               </select>
               <label class="upload-button" for="mapImageUpload">Upload map image / 上傳地圖影像</label>
@@ -185,6 +184,12 @@
                 <p id="mapCaption">No mission area has been analyzed yet. / 尚未開始任務區域分析。</p>
               </div>
               <span id="mapBadge" class="pill muted">Awaiting analysis / 等待分析</span>
+            </div>
+            <div class="map-card-controls" aria-label="Mission map source quick controls">
+              <button class="map-mode-button active" data-map-source="auto" type="button">Auto / 自動</button>
+              <button class="map-mode-button" data-map-source="google" type="button">Google</button>
+              <button class="map-mode-button" data-map-source="osm" type="button">Free map / 免費</button>
+              <button class="map-mode-button" data-map-source="simple" type="button">Simplified / 簡化</button>
             </div>
 
             <div class="mission-map idle">

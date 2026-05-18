@@ -17,6 +17,7 @@ const mapImageUpload = document.getElementById("mapImageUpload");
 const clearMapImageButton = document.getElementById("clearMapImageButton");
 const mapImageStatus = document.getElementById("mapImageStatus");
 const osmMapFrame = document.getElementById("osmMapFrame");
+const mapModeButtons = document.querySelectorAll("[data-map-source]");
 let mapTracks = Array.from(document.querySelectorAll(".track"));
 let mapSatellites = Array.from(document.querySelectorAll(".satellite"));
 const constellationBadge = document.getElementById("constellationBadge");
@@ -69,6 +70,7 @@ let activeCommandPacket = null;
 let selectedMapImageSource = "auto";
 let uploadedMapImageUrl = null;
 let uploadedMapImageName = "";
+let activeMapImageToken = 0;
 let activePresentationStepIndex = 0;
 let presentationModeEnabled = true;
 let currentWorkflowState = "idle";
@@ -177,14 +179,9 @@ const mapImagePresets = {
     position: "center"
   },
   custom: {
-    title: "Custom fleet drill / 自訂星系驗證",
-    nodes: [
-      ["Sandbox setup / 沙盒設定", "Operator edits satellite count, orbit, payload, battery, status, and attitude agility. / 操作員設定衛星數量、軌道、酬載、電量、狀態與姿態機動能力。"],
-      ["Custom request / 自訂需求", "The drill asks which custom spacecraft can image Washington D.C. without flying directly overhead. / 情境要求判斷哪些自訂衛星即使未飛越正上方，也能轉向拍攝華盛頓。"],
-      ["Slew trade-off / 轉向取捨", "Planner checks required off-nadir slew, maximum slew capability, slew time, settle time, and ADCS energy. / 規劃器檢查所需斜視角、最大轉向能力、轉向時間、穩定時間與 ADCS 用電。"],
-      ["Select asset / 選擇衛星", "Recommendation balances payload fit, attitude agility, battery after maneuver, and existing mission status. / 推薦結果同時考慮酬載、姿態機動、任務後電量與既有任務狀態。"],
-      ["Approve bounded commands / 批准受控指令", "Operator releases only ADCS, payload, and data commands within the demo command boundary. / 操作員只釋出 demo 邊界內的姿態、酬載與資料指令。"]
-    ]
+    file: "images/mission-area-washington.svg",
+    status: "Preset: custom Washington D.C. drill / 預存：自訂華盛頓驗證情境",
+    position: "center"
   },
   construction: {
     file: "images/mission-area-construction.svg",
@@ -195,6 +192,33 @@ const mapImagePresets = {
     file: "images/mission-area-washington.svg",
     status: "Preset: Washington D.C. urban target / 預存：華盛頓城市目標",
     position: "center"
+  }
+};
+
+const mapLiveViews = {
+  wildfire: {
+    center: [39.18, -106.82],
+    zoom: 7,
+    googleMapType: "terrain",
+    googleStatus: "Google Maps: Rocky Mountain wildfire AOI / Google 地圖：落基山火場 AOI",
+    freeStatus: "Free map: Rocky Mountain wildfire AOI / 免費地圖：落基山火場 AOI",
+    simplePreset: "wildfire"
+  },
+  construction: {
+    center: [38.8977, -77.0365],
+    zoom: 14,
+    googleMapType: "satellite",
+    googleStatus: "Google Maps: resolved construction AOI / Google 地圖：已解析工地 AOI",
+    freeStatus: "Free map: resolved construction AOI / 免費地圖：已解析工地 AOI",
+    simplePreset: "construction"
+  },
+  washington: {
+    center: [38.9072, -77.0369],
+    zoom: 12,
+    googleMapType: "hybrid",
+    googleStatus: "Google Maps: Washington D.C. target / Google 地圖：華盛頓目標區",
+    freeStatus: "Free map: Washington D.C. target / 免費地圖：華盛頓目標區",
+    simplePreset: "washington"
   }
 };
 
@@ -489,11 +513,22 @@ function setPresentationMode(enabled) {
 
 function scenarioMapPreset(scenarioKey) {
   if (scenarioKey === "construction") return "construction";
+  if (scenarioKey === "custom") return "custom";
+  return "wildfire";
+}
+
+function scenarioMapViewKey(scenarioKey) {
+  if (scenarioKey === "construction") return "construction";
   if (scenarioKey === "custom") return "washington";
   return "wildfire";
 }
 
+function localApiBase() {
+  return window.location.protocol === "file:" ? "https://innospace-demo.vercel.app" : "";
+}
+
 function clearMissionMapImage(status = "Auto scenario imagery / 自動情境底圖") {
+  activeMapImageToken += 1;
   missionMap.classList.remove("has-image");
   missionMap.classList.remove("has-osm");
   missionMap.style.removeProperty("--map-image");
@@ -503,51 +538,111 @@ function clearMissionMapImage(status = "Auto scenario imagery / 自動情境底�
   mapImageStatus.textContent = status;
 }
 
-function openStreetMapUrl(view) {
-  const bbox = view.bbox.join("%2C");
-  const marker = view.marker.join("%2C");
-  return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${marker}`;
+function googleStaticMapUrl(viewKey) {
+  const url = new URL(`${localApiBase()}/api/map-image`, window.location.href);
+  url.searchParams.set("scenario", viewKey);
+  return url.toString();
 }
 
-function applyOpenStreetMap(scenarioKey = activeScenario, options = {}) {
-  const viewKey = scenarioKey === "construction" ? "construction" : scenarioKey === "washington" || scenarioKey === "custom" ? "washington" : "wildfire";
-  const view = options.forceBlank ? null : osmMapViews[viewKey];
+function freeStaticMapUrl(viewKey) {
+  const view = mapLiveViews[viewKey] || mapLiveViews.wildfire;
+  const [lat, lng] = view.center;
+  const url = new URL("https://staticmap.openstreetmap.de/staticmap.php");
+  url.searchParams.set("center", `${lat},${lng}`);
+  url.searchParams.set("zoom", String(view.zoom));
+  url.searchParams.set("size", "900x520");
+  url.searchParams.set("maptype", "mapnik");
+  url.searchParams.set("markers", `${lat},${lng},ol-marker`);
+  return url.toString();
+}
 
+function setMapBackground(url, status, position = "center") {
   missionMap.classList.remove("has-image");
-  missionMap.style.removeProperty("--map-image");
-  missionMap.style.removeProperty("--map-position");
+  missionMap.classList.remove("has-osm");
+  osmMapFrame.classList.add("hidden");
+  osmMapFrame.removeAttribute("src");
+  missionMap.classList.add("has-image");
+  missionMap.style.setProperty("--map-image", `url("${url}")`);
+  missionMap.style.setProperty("--map-position", position);
+  mapImageStatus.textContent = status;
+}
 
-  if (!view) {
-    missionMap.classList.remove("has-osm");
-    osmMapFrame.classList.add("hidden");
-    osmMapFrame.removeAttribute("src");
-    mapImageStatus.textContent = "OpenStreetMap waits for a resolved AOI / OpenStreetMap 等待 AOI 解析";
+function applySimpleScenarioMap(scenarioKey = activeScenario, statusPrefix = "") {
+  const preset = mapImagePresets[scenarioMapPreset(scenarioKey)];
+
+  if (!preset) {
+    clearMissionMapImage();
     return;
   }
 
-  missionMap.classList.add("has-osm");
-  osmMapFrame.src = openStreetMapUrl(view);
-  osmMapFrame.classList.remove("hidden");
-  mapImageStatus.textContent = view.status;
+  const status = statusPrefix ? `${statusPrefix} ${preset.status}` : preset.status;
+  setMapBackground(mapAssetPath(preset.file), status, preset.position);
 }
 
-function applyMissionMapImage(scenarioKey = activeScenario, options = {}) {
-  const forceBlankAuto = Boolean(options.forceBlankAuto);
+function probeMapImage(url) {
+  return new Promise((resolve) => {
+    if (!url) {
+      resolve(false);
+      return;
+    }
 
-  if (selectedMapImageSource === "osm") {
-    applyOpenStreetMap(scenarioKey, { forceBlank: forceBlankAuto });
+    const image = new Image();
+    let settled = false;
+    const timeout = window.setTimeout(() => finish(false), 4200);
+    const finish = (ok) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      resolve(ok);
+    };
+
+    image.onload = () => finish(image.naturalWidth > 0 && image.naturalHeight > 0);
+    image.onerror = () => finish(false);
+    image.src = url;
+  });
+}
+
+async function tryMapProvider({ token, url, status, loadingStatus }) {
+  mapImageStatus.textContent = loadingStatus;
+  const ok = await probeMapImage(url);
+  if (token !== activeMapImageToken) return true;
+  if (!ok) return false;
+  setMapBackground(url, status, "center");
+  return true;
+}
+
+function syncMapSourceControls() {
+  if (mapImageSelect.value !== selectedMapImageSource) {
+    mapImageSelect.value = selectedMapImageSource;
+  }
+
+  mapModeButtons.forEach((button) => {
+    button.classList.toggle("active", button.dataset.mapSource === selectedMapImageSource);
+  });
+}
+
+function setMapImageSource(source) {
+  selectedMapImageSource = source;
+  syncMapSourceControls();
+  updateMapImageFromCurrentState();
+}
+
+async function applyMissionMapImage(scenarioKey = activeScenario, options = {}) {
+  const forceBlankAuto = Boolean(options.forceBlankAuto);
+  const token = ++activeMapImageToken;
+  const viewKey = scenarioMapViewKey(scenarioKey);
+  const view = mapLiveViews[viewKey] || mapLiveViews.wildfire;
+
+  syncMapSourceControls();
+
+  if (forceBlankAuto && selectedMapImageSource === "auto") {
+    clearMissionMapImage("Target unresolved: map waits for address or AOI / 目標未解析：地圖等待地址或 AOI");
     return;
   }
 
   if (selectedMapImageSource === "upload") {
     if (uploadedMapImageUrl) {
-      missionMap.classList.remove("has-osm");
-      osmMapFrame.classList.add("hidden");
-      osmMapFrame.removeAttribute("src");
-      missionMap.classList.add("has-image");
-      missionMap.style.setProperty("--map-image", `url("${uploadedMapImageUrl}")`);
-      missionMap.style.setProperty("--map-position", "center");
-      mapImageStatus.textContent = `Uploaded: ${uploadedMapImageName} / 已上傳影像`;
+      setMapBackground(uploadedMapImageUrl, `Uploaded: ${uploadedMapImageName} / 已上傳影像`, "center");
       return;
     }
 
@@ -555,21 +650,37 @@ function applyMissionMapImage(scenarioKey = activeScenario, options = {}) {
     return;
   }
 
-  const presetKey = selectedMapImageSource === "auto" ? (forceBlankAuto ? null : scenarioMapPreset(scenarioKey)) : selectedMapImageSource;
-  const preset = presetKey ? mapImagePresets[presetKey] : null;
-
-  if (!preset) {
-    clearMissionMapImage();
+  if (selectedMapImageSource === "simple" || mapImagePresets[selectedMapImageSource]) {
+    applySimpleScenarioMap(scenarioKey);
     return;
   }
 
-  missionMap.classList.remove("has-osm");
-  osmMapFrame.classList.add("hidden");
-  osmMapFrame.removeAttribute("src");
-  missionMap.classList.add("has-image");
-  missionMap.style.setProperty("--map-image", `url("${mapAssetPath(preset.file)}")`);
-  missionMap.style.setProperty("--map-position", preset.position);
-  mapImageStatus.textContent = preset.status;
+  const googleUrl = googleStaticMapUrl(viewKey);
+  const freeUrl = freeStaticMapUrl(viewKey);
+
+  if (selectedMapImageSource === "google" || selectedMapImageSource === "auto") {
+    const googleOk = await tryMapProvider({
+      token,
+      url: googleUrl,
+      status: view.googleStatus,
+      loadingStatus: "Checking Google Maps for this scenario / 正在測試此情境的 Google 地圖"
+    });
+    if (googleOk) return;
+  }
+
+  if (selectedMapImageSource === "osm" || selectedMapImageSource === "google" || selectedMapImageSource === "auto") {
+    const freeOk = await tryMapProvider({
+      token,
+      url: freeUrl,
+      status: view.freeStatus,
+      loadingStatus: "Google unavailable; checking free map / Google 不可用，正在測試免費地圖"
+    });
+    if (freeOk) return;
+  }
+
+  if (token === activeMapImageToken) {
+    applySimpleScenarioMap(scenarioKey, "Live maps unavailable; using simplified image. / 即時地圖不可用，切換簡化圖。");
+  }
 }
 
 function updateMapImageFromCurrentState() {
@@ -1972,8 +2083,11 @@ function exportCommandPacket() {
 }
 
 mapImageSelect.addEventListener("change", () => {
-  selectedMapImageSource = mapImageSelect.value;
-  updateMapImageFromCurrentState();
+  setMapImageSource(mapImageSelect.value);
+});
+
+mapModeButtons.forEach((button) => {
+  button.addEventListener("click", () => setMapImageSource(button.dataset.mapSource));
 });
 
 mapImageUpload.addEventListener("change", () => {
@@ -1986,8 +2100,9 @@ mapImageUpload.addEventListener("change", () => {
 
   uploadedMapImageUrl = URL.createObjectURL(file);
   uploadedMapImageName = file.name;
+  syncMapSourceControls();
   selectedMapImageSource = "upload";
-  mapImageSelect.value = "upload";
+  syncMapSourceControls();
   updateMapImageFromCurrentState();
 });
 
@@ -1999,9 +2114,7 @@ clearMapImageButton.addEventListener("click", () => {
   uploadedMapImageUrl = null;
   uploadedMapImageName = "";
   mapImageUpload.value = "";
-  selectedMapImageSource = "auto";
-  mapImageSelect.value = "auto";
-  updateMapImageFromCurrentState();
+  setMapImageSource("auto");
 });
 
 scenarioButtons.forEach((button) => {

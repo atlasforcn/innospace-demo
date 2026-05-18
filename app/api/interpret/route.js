@@ -80,6 +80,10 @@ function normalizeIntent(intent, prompt) {
     ...fallback.observation_request,
     ...(intent?.observation_request || {})
   };
+  const constraintOverrides =
+    intent?.constraints && typeof intent.constraints === "object" && !Array.isArray(intent.constraints)
+      ? intent.constraints
+      : {};
 
   return {
     ...fallback,
@@ -99,8 +103,9 @@ function normalizeIntent(intent, prompt) {
     },
     constraints: {
       ...fallback.constraints,
-      ...(intent?.constraints || {})
+      ...constraintOverrides
     },
+    operator_gate: typeof intent?.operator_gate === "boolean" ? intent.operator_gate : fallback.operator_gate,
     clarification_questions: Array.isArray(intent?.clarification_questions)
       ? intent.clarification_questions
       : fallback.clarification_questions
