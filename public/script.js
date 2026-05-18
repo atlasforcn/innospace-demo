@@ -75,6 +75,7 @@ let activePresentationStepIndex = 0;
 let presentationModeEnabled = true;
 let currentWorkflowState = "idle";
 let progressSteps = [];
+let activeCustomTarget = null;
 
 const presentationSteps = [
   {
@@ -179,8 +180,8 @@ const mapImagePresets = {
     position: "center"
   },
   custom: {
-    file: "images/mission-area-washington.svg",
-    status: "Preset: custom Washington D.C. drill / 預存：自訂華盛頓驗證情境",
+    file: "images/mission-area-custom.svg",
+    status: "Preset: custom target AOI / 預存：自訂目標 AOI",
     position: "center"
   },
   construction: {
@@ -219,6 +220,14 @@ const mapLiveViews = {
     googleStatus: "Google Maps: Washington D.C. target / Google 地圖：華盛頓目標區",
     freeStatus: "Free map: Washington D.C. target / 免費地圖：華盛頓目標區",
     simplePreset: "washington"
+  },
+  custom: {
+    center: [23.6978, 120.9605],
+    zoom: 7,
+    googleMapType: "terrain",
+    googleStatus: "Google Maps: custom target pending / Google 地圖：等待自訂目標",
+    freeStatus: "Free map: custom target pending / 免費地圖：等待自訂目標",
+    simplePreset: "custom"
   }
 };
 
@@ -519,12 +528,64 @@ function scenarioMapPreset(scenarioKey) {
 
 function scenarioMapViewKey(scenarioKey) {
   if (scenarioKey === "construction") return "construction";
-  if (scenarioKey === "custom") return "washington";
+  if (scenarioKey === "custom") return "custom";
   return "wildfire";
 }
 
 function localApiBase() {
   return window.location.protocol === "file:" ? "https://innospace-demo.vercel.app" : "";
+}
+
+function apiUrl(path) {
+  const base = localApiBase();
+  return base ? `${base}${path}` : path;
+}
+
+function hasTargetCoordinates(target = activeCustomTarget) {
+  return Number.isFinite(Number(target?.location?.lat)) && Number.isFinite(Number(target?.location?.lng));
+}
+
+function cleanDisplayText(value, fallback = "Custom AOI") {
+  const text = String(value || "").replace(/[<>]/g, "").replace(/\s+/g, " ").trim();
+  return text ? text.slice(0, 120) : fallback;
+}
+
+function targetRefFromTarget(target) {
+  const ascii = String(target?.label || target?.query || "")
+    .normalize("NFKD")
+    .replace(/[^\w\s-]/g, "")
+    .replace(/_/g, "-")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .toUpperCase();
+
+  if (ascii) return `CUSTOM-AOI-${ascii.slice(0, 30)}`;
+  if (hasTargetCoordinates(target)) {
+    const lat = Math.abs(Number(target.location.lat) * 100).toFixed(0);
+    const lng = Math.abs(Number(target.location.lng) * 100).toFixed(0);
+    return `CUSTOM-AOI-${lat}-${lng}`;
+  }
+  return "CUSTOM-AOI";
+}
+
+function mapViewForKey(viewKey) {
+  if (viewKey === "custom" && hasTargetCoordinates()) {
+    const label = cleanDisplayText(activeCustomTarget.label || activeCustomTarget.query);
+    const isHazard = activeCustomTarget.need?.type === "hazard_response";
+    return {
+      center: [Number(activeCustomTarget.location.lat), Number(activeCustomTarget.location.lng)],
+      zoom: isHazard ? 11 : 13,
+      googleMapType: isHazard ? "terrain" : "hybrid",
+      googleStatus: `Google Maps: ${label} / Google 地圖：自訂目標`,
+      freeStatus: `Free map: ${label} / 免費地圖：自訂目標`,
+      simplePreset: "custom",
+      dynamic: true,
+      markerLabel: "T"
+    };
+  }
+
+  return mapLiveViews[viewKey] || mapLiveViews.wildfire;
 }
 
 function clearMissionMapImage(status = "Auto scenario imagery / 自動情境底圖") {
@@ -542,7 +603,19 @@ function clearMissionMapImage(status = "Auto scenario imagery / 自動情境底�
 
 function googleStaticMapUrl(viewKey) {
   const url = new URL(`${localApiBase()}/api/map-image`, window.location.href);
-  url.searchParams.set("scenario", viewKey);
+  const view = mapViewForKey(viewKey);
+
+  if (view.dynamic) {
+    const [lat, lng] = view.center;
+    url.searchParams.set("lat", String(lat));
+    url.searchParams.set("lng", String(lng));
+    url.searchParams.set("label", view.markerLabel || "T");
+    url.searchParams.set("zoom", String(view.zoom));
+    url.searchParams.set("maptype", view.googleMapType || "terrain");
+  } else {
+    url.searchParams.set("scenario", viewKey);
+  }
+
   return url.toString();
 }
 
@@ -620,7 +693,7 @@ function clearOsmTileLayer() {
 }
 
 function renderOsmTileLayer(viewKey) {
-  const view = mapLiveViews[viewKey] || mapLiveViews.wildfire;
+  const view = mapViewForKey(viewKey);
   const [lat, lng] = view.center;
   const zoom = view.zoom;
   const centerTile = latLngToTile(lat, lng, zoom);
@@ -659,7 +732,7 @@ function renderOsmTileLayer(viewKey) {
 }
 
 async function tryFreeMapProvider({ token, viewKey, status, loadingStatus }) {
-  const view = mapLiveViews[viewKey] || mapLiveViews.wildfire;
+  const view = mapViewForKey(viewKey);
   const [lat, lng] = view.center;
   const centerTile = latLngToTile(lat, lng, view.zoom);
   mapImageStatus.textContent = loadingStatus;
@@ -691,7 +764,7 @@ async function applyMissionMapImage(scenarioKey = activeScenario, options = {}) 
   const forceBlankAuto = Boolean(options.forceBlankAuto);
   const token = ++activeMapImageToken;
   const viewKey = scenarioMapViewKey(scenarioKey);
-  const view = mapLiveViews[viewKey] || mapLiveViews.wildfire;
+  const view = mapViewForKey(viewKey);
 
   syncMapSourceControls();
 
@@ -755,6 +828,11 @@ function updateMapImageFromCurrentState() {
 
   if (activeScenario === "construction" && !constructionResolved) {
     applyMissionMapImage(activeScenario, { forceBlankAuto: true });
+    return;
+  }
+
+  if (activeScenario === "custom" && currentWorkflowState === "blocked" && !activeCustomTarget) {
+    clearMissionMapImage("Custom target unresolved: map waits for GPS, address, or AOI / 自訂目標未解析：地圖等待 GPS、地址或 AOI");
     return;
   }
 
@@ -857,7 +935,7 @@ const commandBoundaryModel = [
 ];
 
 const defaultCustomSatellites = [
-  { orbit: "SSO", battery: 78, position: "Ascending pass east of Washington D.C.", payload: "optical", status: "nominal", requiredSlewDeg: 22, maxSlewDeg: 35, slewRateDegS: 0.18 },
+  { orbit: "SSO", battery: 78, position: "Ascending pass east of target AOI", payload: "optical", status: "nominal", requiredSlewDeg: 22, maxSlewDeg: 35, slewRateDegS: 0.18 },
   { orbit: "SSO", battery: 54, position: "Descending pass west of target", payload: "thermal_ir", status: "nominal", requiredSlewDeg: 31, maxSlewDeg: 28, slewRateDegS: 0.11 },
   { orbit: "LEO", battery: 38, position: "Approaching target in 18 min", payload: "sar", status: "busy", requiredSlewDeg: 16, maxSlewDeg: 45, slewRateDegS: 0.22 },
   { orbit: "GEO", battery: 82, position: "Pacific relay view", payload: "communications", status: "nominal", requiredSlewDeg: 4, maxSlewDeg: 12, slewRateDegS: 0.04 }
@@ -1093,16 +1171,122 @@ function evaluateCustomSatellite(sat, scenarioKey) {
   return { sat, score, reasons, executable, tone, title, relayOnly, slew };
 }
 
-function buildCustomConstellationPlan(scenarioKey) {
+function extractCustomTargetQuery(prompt) {
+  const source = String(prompt || "").trim();
+  const cleaned = source
+    .replace(/[，。！？、,.!?]/g, " ")
+    .replace(/\b(use|my|custom|constellation|fleet|satellite|satellites|to|as|soon|possible|image|monitor|detect|observe|acquire|for|the|a|an|please|drill|test|slew|off-nadir|off nadir|include)\b/gi, " ")
+    .replace(/請|幫我|使用|自訂|星系|衛星|檢測|偵測|拍攝|監測|觀測|取得|針對|快速|盡快|土石流|山崩|森林大火|山火|火災|施工|工地|狀況/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return cleaned || source;
+}
+
+function inferCustomObservationNeed(prompt) {
+  const text = String(prompt || "").toLowerCase();
+
+  if (/土石流|山崩|landslide|debris|mudslide/.test(text)) {
+    return {
+      type: "hazard_response",
+      mission: "Debris-flow / landslide detection / 土石流與坡地災害偵測",
+      gsd: "3.0 m optical or multispectral rapid mapping / 3.0 公尺光學或多光譜快速判讀",
+      payload: "optical, multispectral, SAR if cloud risk is high",
+      cadence: "once, with optional follow-up after operator approval"
+    };
+  }
+
+  if (/wildfire|forest fire|山火|火災|森林大火/.test(text)) {
+    return {
+      type: "hazard_response",
+      mission: "Wildfire response imaging / 火災應變拍攝",
+      gsd: "3.0 m optical overview, thermal IR optional / 3.0 公尺光學概覽，可搭配熱紅外",
+      payload: "optical or thermal_ir",
+      cadence: "once, urgent"
+    };
+  }
+
+  if (/construction|工地|施工|build|site/.test(text)) {
+    return {
+      type: "monitoring",
+      mission: "Site monitoring / 場址監測",
+      gsd: "0.5-1.0 m optical repeatability / 0.5 到 1.0 公尺光學一致性拍攝",
+      payload: "optical",
+      cadence: "repeatable"
+    };
+  }
+
+  return {
+    type: "custom_imaging",
+    mission: "Custom off-nadir imaging / 自訂斜視拍攝",
+    gsd: "1.0-3.0 m depending on payload and access geometry / 依酬載與可見幾何決定 1.0 到 3.0 公尺",
+    payload: "best available imaging payload",
+    cadence: "once"
+  };
+}
+
+function buildCustomTarget(prompt, geocodeResult) {
+  const query = extractCustomTargetQuery(prompt);
+  const result = geocodeResult?.result;
+  const lat = Number(result?.location?.lat);
+  const lng = Number(result?.location?.lng);
+  const need = inferCustomObservationNeed(prompt);
+
+  if (Number.isFinite(lat) && Number.isFinite(lng)) {
+    const label = cleanDisplayText(result.formatted_address || query);
+    const target = {
+      status: "resolved",
+      label,
+      query: cleanDisplayText(query, label),
+      source: geocodeResult?.source || "fallback",
+      location: { lat, lng },
+      need
+    };
+    target.ref = targetRefFromTarget(target);
+    return target;
+  }
+
+  return {
+    status: "unresolved",
+    label: cleanDisplayText(query, "Custom target"),
+    query: cleanDisplayText(query, "Custom target"),
+    source: geocodeResult?.source || "none",
+    warning: geocodeResult?.warning || "Target could not be converted into coordinates.",
+    need
+  };
+}
+
+function customIntentEntries(target) {
+  if (!target || target.status !== "resolved") {
+    return [
+      ["Mission type / 任務類型", target?.need?.mission || "Custom task / 自訂任務"],
+      ["Target resolution / 目標解析", `Unresolved from: ${target?.query || "mission prompt"} / 無法轉成可執行座標`],
+      ["System action / 系統動作", "Request clearer address, GPS coordinates, or a map-defined AOI / 要求更清楚地址、GPS 座標或地圖框選 AOI"],
+      ["Planning state / 規劃狀態", "Paused before satellite tasking / 在衛星任務規劃前暫停"]
+    ];
+  }
+
+  return [
+    ["Mission type / 任務類型", target.need.mission],
+    ["Geolocation / 地理解析", `${target.label} resolved to ${target.location.lat.toFixed(4)} deg, ${target.location.lng.toFixed(4)} deg / 已解析為可執行座標`],
+    ["Requested AOI / 需求區域", `${target.query} / 使用者輸入目標`],
+    ["Recommended GSD / 建議 GSD", target.need.gsd],
+    ["Payload policy / 酬載策略", `${target.need.payload} / 依任務需求選擇可用感測器`],
+    ["Attitude policy / 姿態策略", "Allow target pointing when required slew, settle time, and post-task battery remain inside limits / 轉向角、穩定時間與任務後電量皆安全才允許斜視拍攝"]
+  ];
+}
+
+function buildCustomConstellationPlan(scenarioKey, target = null) {
   const evaluations = getCustomSatellites()
     .map((sat) => evaluateCustomSatellite(sat, scenarioKey))
     .sort((a, b) => b.score - a.score);
   const best = evaluations.find((item) => item.executable);
+  const targetLabel = cleanDisplayText(target?.label, "operator-defined AOI");
   const missionLabel =
     scenarioKey === "construction"
       ? "site monitoring"
       : scenarioKey === "custom"
-        ? "custom Washington D.C. off-nadir imaging"
+        ? `${targetLabel} off-nadir imaging`
         : "emergency imaging";
 
   const cards = evaluations.map(({ sat, tone, reasons, slew }) => ({
@@ -1154,7 +1338,7 @@ function buildCustomConstellationPlan(scenarioKey) {
   }
 
   const captureMode = scenarioKey === "construction" ? "OPTICAL_REPEATABILITY" : scenarioKey === "custom" ? "CUSTOM_OFF_NADIR_IMAGING" : "RESPONSIVE_IMAGING";
-  const targetRef = scenarioKey === "construction" ? "CUSTOM-SITE-AOI" : scenarioKey === "custom" ? "WASHINGTON-DC-CUSTOM-AOI" : "CUSTOM-URGENT-AOI";
+  const targetRef = scenarioKey === "construction" ? "CUSTOM-SITE-AOI" : scenarioKey === "custom" ? targetRefFromTarget(target) : "CUSTOM-URGENT-AOI";
   const bestSlew = best.slew;
 
   return {
@@ -1217,6 +1401,21 @@ function buildCustomConstellationPlan(scenarioKey) {
       mission_id: `CUSTOM-${scenarioKey.toUpperCase()}-001`,
       mission_type: scenarioKey === "construction" ? "custom_recurring_site_monitoring" : scenarioKey === "custom" ? "custom_off_nadir_imaging_drill" : "custom_responsive_imaging",
       operator_gate: "required",
+      target: target?.status === "resolved"
+        ? {
+            label: target.label,
+            center_lat: target.location.lat,
+            center_lon: target.location.lng,
+            geometry: target.need?.type === "hazard_response" ? "regional_area" : "point",
+            target_ref: targetRef
+          }
+        : { label: targetLabel, geometry: "unknown", target_ref: targetRef },
+      planning_requirements: {
+        payload_family: target?.need?.payload || "best available imaging payload",
+        recommended_gsd: target?.need?.gsd || "mission-dependent",
+        preserve_existing_missions: true,
+        operator_gate_required: true
+      },
       selected_assets: [best.sat.id],
       custom_constellation: getCustomSatellites(),
       sequences: [
@@ -1450,12 +1649,12 @@ const scenarios = {
     }
   },
   custom: {
-    prompt: "Use my custom constellation to image Washington D.C. as soon as possible. Include satellites that can slew off-nadir even if they do not pass directly overhead.",
+    prompt: "檢測台灣阿里山土石流",
     constellation: "Operator-defined custom constellation / 操作員自訂星系",
     intent: [
       ["Mission type / 任務類型", "Custom off-nadir imaging drill / 自訂斜視拍攝驗證"],
-      ["Geolocation / 地理解析", "Washington D.C. target resolved to 38.9072 deg N, 77.0369 deg W / 已解析為華盛頓目標座標"],
-      ["Planning question / 規劃問題", "Which custom satellite can rotate to the target fastest without unsafe battery draw? / 哪顆自訂衛星能最快安全轉向拍攝？"],
+      ["Geolocation / 地理解析", "Resolved from the operator prompt during analysis / 分析時依操作員輸入解析"],
+      ["Planning question / 規劃問題", "Which custom satellite can rotate to the resolved target fastest without unsafe battery draw? / 哪顆自訂衛星能最快安全轉向到解析後目標？"],
       ["Attitude policy / 姿態策略", "Allow target pointing if required slew stays within each spacecraft limit / 只要所需轉向角不超過各衛星限制即可納入"],
       ["Safety policy / 安全策略", "Reject assets whose maneuver leaves insufficient post-task battery / 若轉向與拍攝後電量不足，則排除"]
     ],
@@ -1636,6 +1835,7 @@ const scenarios = {
 
 function setScenario(nextScenario) {
   activeScenario = nextScenario;
+  activeCustomTarget = null;
   approved = false;
   approveButton.disabled = true;
   exportButton.disabled = true;
@@ -1951,26 +2151,63 @@ function renderConstruction(resolved) {
     : "Clarification required / 需要補充資訊";
 }
 
-function renderCustomScenario() {
-  const scenario = scenarios.custom;
-  const customPlan = buildCustomConstellationPlan("custom");
+function renderCustomScenario(llmResult = null, target = null) {
+  activeCustomTarget = target?.status === "resolved" ? target : null;
+  const customPlan = target?.status === "resolved" ? buildCustomConstellationPlan("custom", target) : null;
 
   missionMap.classList.remove("idle");
+  constellationBadge.className = "pill";
+  constellationBadge.textContent = customPlan?.constellationLabel || `${getCustomSatellites().length} custom satellites / ${getCustomSatellites().length} 顆自訂衛星`;
+  mapTarget.className = "map-target construction-target";
+
+  if (!target || target.status !== "resolved") {
+    clearMissionMapImage("Custom target unresolved: map waits for GPS, address, or AOI / 自訂目標未解析：地圖等待 GPS、地址或 AOI");
+    mapBadge.className = "pill muted";
+    mapBadge.textContent = "Target unresolved / 目標未解析";
+    mapTarget.innerHTML = "<span>?</span>";
+    renderMapAssets([]);
+    clarificationBox.className = "clarification-box warning";
+    clarificationBox.innerHTML =
+      `<strong>Clarification required / 需要補充資訊。</strong><p>${target?.label || "The custom target"} could not be converted into GPS coordinates. Provide a clearer place name, address, coordinates, or draw an AOI before spacecraft tasking. / 目前無法轉成 GPS 座標；請提供更清楚地名、地址、座標或框選 AOI，系統才會往下規劃。</p>`;
+    mapCaption.textContent = "Custom planning is paused until the target is geolocated. / 自訂任務會停在目標檢核，直到位置被解析。";
+    renderDefinitionList(customIntentEntries(target));
+    renderCards([]);
+    renderSuitabilityModel();
+    renderDecisionRows([["Target Gate", "Paused", "No satellite is scored or commanded before the custom target becomes coordinates or AOI.", "warn"]]);
+    renderRecommendedAsset({
+      title: "Awaiting geolocation / 等待定位",
+      note: "The system preserves the command boundary by blocking satellite tasking until the target is real and explainable."
+    });
+    renderTimeline([
+      {
+        time: "Planning hold / 規劃暫停",
+        detail: "Resolve the custom target before evaluating access, slew, payload fit, or battery.",
+        fromState: "Mission Intake",
+        toState: "Target Gate",
+        commands: [
+          { subsystem: "Planner / 規劃器", text: "ASK_CLARIFICATION for address, GPS coordinate, or AOI polygon." }
+        ]
+      }
+    ]);
+    renderCommandBoundary();
+    activeCommandPacket = null;
+    updateWorkflowProgress("blocked");
+    planStatus.textContent = "Clarification required / 需要補充資訊";
+    return;
+  }
+
   applyMissionMapImage("custom");
   mapBadge.className = "pill";
-  constellationBadge.className = "pill";
-  constellationBadge.textContent = customPlan.constellationLabel;
-  mapTarget.className = "map-target construction-target";
-  mapTarget.innerHTML = "<span>DC</span>";
+  mapTarget.innerHTML = "<span>AOI</span>";
   renderMapAssets(mapAssetNamesFromPlan(customPlan, []), selectedAssetNamesFromPlan(customPlan), true);
 
   clarificationBox.className = "clarification-box ready";
   clarificationBox.innerHTML =
-    "<strong>Custom drill ready / 自訂驗證就緒。</strong><p>This scenario uses only the sandbox constellation. Preset wildfire and construction fleets remain unchanged. / 此情境只使用沙盒星系；預設森林大火與工地監測星系不會被改動。</p>";
-  mapCaption.textContent = "Washington D.C. target resolved; planner is testing whether custom satellites can slew off-nadir to image it. / 華盛頓目標已解析，規劃器正在檢查自訂衛星能否斜視轉向拍攝。";
+    `<strong>Custom drill ready / 自訂驗證就緒。</strong><p>${target.label} is geolocated, so the planner can score only the sandbox constellation against payload, slew, battery, and existing task constraints. / ${target.label} 已定位；系統只會用沙盒星系評估酬載、轉向、電量與既有任務限制。</p>`;
+  mapCaption.textContent = `${target.label} resolved from the custom request; planner is testing whether custom satellites can slew off-nadir to image it. / 已從自訂需求解析 ${target.label}，規劃器正在檢查自訂衛星能否斜視轉向拍攝。`;
   mapBadge.textContent = "Custom target resolved / 自訂目標已解析";
 
-  renderDefinitionList(scenario.intent);
+  renderDefinitionList(customIntentEntries(target, llmResult));
   renderCards(customPlan.cards);
   renderSuitabilityModel();
   renderDecisionRows(customPlan.decisions);
@@ -1986,7 +2223,7 @@ function renderCustomScenario() {
 
 async function requestLlmIntent() {
   try {
-    const response = await fetch("/api/interpret", {
+    const response = await fetch(apiUrl("/api/interpret"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt: missionPrompt.value })
@@ -2004,7 +2241,7 @@ async function requestLlmIntent() {
 
 async function requestGeocode(address) {
   try {
-    const response = await fetch(`/api/geocode?q=${encodeURIComponent(address)}`);
+    const response = await fetch(apiUrl(`/api/geocode?q=${encodeURIComponent(address)}`));
     if (!response.ok) return null;
     return await response.json();
   } catch (error) {
@@ -2069,10 +2306,13 @@ async function analyzeMission() {
   }
 
   if (activeScenario === "custom") {
-    renderCustomScenario();
+    const targetQuery = extractCustomTargetQuery(missionPrompt.value);
+    const [llmResult, geocodeResult] = await Promise.all([llmPromise, requestGeocode(targetQuery)]);
+    const customTarget = buildCustomTarget(missionPrompt.value, geocodeResult);
+    renderCustomScenario(llmResult, customTarget);
     approveButton.disabled = !activeCommandPacket;
-    goToPresentationStep(2);
-    appendLlmIntentSummary(await llmPromise);
+    goToPresentationStep(activeCommandPacket ? 2 : 1);
+    appendLlmIntentSummary(llmResult);
     updatePresentationStep();
     return;
   }

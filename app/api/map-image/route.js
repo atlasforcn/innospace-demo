@@ -1,5 +1,11 @@
 export const runtime = "nodejs";
 
+const corsHeaders = {
+  "access-control-allow-origin": "*",
+  "access-control-allow-methods": "GET, OPTIONS",
+  "access-control-allow-headers": "Content-Type"
+};
+
 const mapViews = {
   wildfire: {
     center: [39.18, -106.82],
@@ -32,16 +38,54 @@ function normalizeScenario(value) {
   return "wildfire";
 }
 
+function numericParam(searchParams, key) {
+  const value = Number(searchParams.get(key));
+  return Number.isFinite(value) ? value : null;
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function markerLabel(value) {
+  const text = String(value || "T").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return text.slice(0, 1) || "T";
+}
+
+function viewFromRequest(searchParams) {
+  const lat = numericParam(searchParams, "lat");
+  const lng = numericParam(searchParams, "lng");
+
+  if (lat !== null && lng !== null && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+    const zoom = clamp(Number(searchParams.get("zoom")) || 12, 1, 20);
+    const maptype = ["roadmap", "satellite", "terrain", "hybrid"].includes(searchParams.get("maptype"))
+      ? searchParams.get("maptype")
+      : "terrain";
+
+    return {
+      center: [lat, lng],
+      zoom,
+      maptype,
+      marker: `color:red|label:${markerLabel(searchParams.get("label"))}|${lat},${lng}`
+    };
+  }
+
+  return mapViews[normalizeScenario(searchParams.get("scenario"))];
+}
+
+export function OPTIONS() {
+  return new Response(null, { headers: corsHeaders });
+}
+
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
-  const scenario = normalizeScenario(searchParams.get("scenario"));
   const key = googleMapsKey();
 
   if (!key) {
-    return Response.json({ error: "GOOGLE_MAPS_API_KEY is not configured." }, { status: 503 });
+    return Response.json({ error: "GOOGLE_MAPS_API_KEY is not configured." }, { status: 503, headers: corsHeaders });
   }
 
-  const view = mapViews[scenario];
+  const view = viewFromRequest(searchParams);
   const [lat, lng] = view.center;
   const url = new URL("https://maps.googleapis.com/maps/api/staticmap");
   url.searchParams.set("center", `${lat},${lng}`);
@@ -65,17 +109,18 @@ export async function GET(request) {
           google_status: response.status,
           google_content_type: contentType
         },
-        { status: 502 }
+        { status: 502, headers: corsHeaders }
       );
     }
 
     return new Response(await response.arrayBuffer(), {
       headers: {
         "content-type": contentType,
-        "cache-control": "public, max-age=300"
+        "cache-control": "public, max-age=300",
+        ...corsHeaders
       }
     });
   } catch (error) {
-    return Response.json({ error: "Google Static Maps request failed." }, { status: 502 });
+    return Response.json({ error: "Google Static Maps request failed." }, { status: 502, headers: corsHeaders });
   }
 }

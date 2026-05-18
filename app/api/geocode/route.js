@@ -1,11 +1,23 @@
 export const runtime = "nodejs";
 
+const corsHeaders = {
+  "access-control-allow-origin": "*",
+  "access-control-allow-methods": "GET, OPTIONS",
+  "access-control-allow-headers": "Content-Type"
+};
+
 const fallbackLocations = [
   {
     pattern: /washington|dc|d\.c\.|pennsylvania/i,
     formatted_address: "Washington, DC, USA",
     location: { lat: 38.9072, lng: -77.0369 },
     place_id: "fallback-washington-dc"
+  },
+  {
+    pattern: /alishan|阿里山|chiayi|嘉義/i,
+    formatted_address: "Alishan Township, Chiayi County, Taiwan",
+    location: { lat: 23.4355, lng: 120.7809 },
+    place_id: "fallback-alishan-taiwan"
   },
   {
     pattern: /rocky|mountain|wildfire|colorado/i,
@@ -36,17 +48,31 @@ function googleMapsKey() {
   return process.env.GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_KEY || process.env.GOOGLE_API_KEY;
 }
 
+function json(data, init = {}) {
+  return Response.json(data, {
+    ...init,
+    headers: {
+      ...corsHeaders,
+      ...(init.headers || {})
+    }
+  });
+}
+
+export function OPTIONS() {
+  return new Response(null, { headers: corsHeaders });
+}
+
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const query = searchParams.get("q") || searchParams.get("address") || "";
 
   if (!query.trim()) {
-    return Response.json({ error: "Missing q or address query parameter" }, { status: 400 });
+    return json({ error: "Missing q or address query parameter" }, { status: 400 });
   }
 
   const key = googleMapsKey();
   if (!key) {
-    return Response.json({
+    return json({
       source: "fallback",
       warning: "Google Maps API key is not configured.",
       query,
@@ -63,7 +89,7 @@ export async function GET(request) {
     const data = await response.json();
 
     if (data.status !== "OK" || !data.results?.length) {
-      return Response.json({
+      return json({
         source: "fallback",
         warning: `Google Geocoding returned ${data.status || "NO_STATUS"}.`,
         google_status: data.status || null,
@@ -74,7 +100,7 @@ export async function GET(request) {
     }
 
     const result = data.results[0];
-    return Response.json({
+    return json({
       source: "google",
       query,
       result: {
@@ -86,7 +112,7 @@ export async function GET(request) {
       }
     });
   } catch (error) {
-    return Response.json({
+    return json({
       source: "fallback",
       warning: "Google Geocoding request failed.",
       query,

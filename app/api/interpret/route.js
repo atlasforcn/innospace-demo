@@ -3,26 +3,61 @@ import path from "node:path";
 
 export const runtime = "nodejs";
 
+const corsHeaders = {
+  "access-control-allow-origin": "*",
+  "access-control-allow-methods": "POST, OPTIONS",
+  "access-control-allow-headers": "Content-Type"
+};
+
+function json(data, init = {}) {
+  return Response.json(data, {
+    ...init,
+    headers: {
+      ...corsHeaders,
+      ...(init.headers || {})
+    }
+  });
+}
+
+export function OPTIONS() {
+  return new Response(null, { headers: corsHeaders });
+}
+
+function fallbackTargetLabel(prompt, { isCustomDrill, isWildfire, isConstruction, isLandslide }) {
+  const text = String(prompt || "");
+  if (/alishan|阿里山|chiayi|嘉義/i.test(text)) return "Alishan Township, Taiwan candidate AOI";
+  if (/taiwan|台灣|臺灣/i.test(text)) return "Taiwan candidate AOI";
+  if (isCustomDrill) return "operator-defined custom AOI";
+  if (isWildfire) return "Rocky Mountains candidate AOI";
+  if (isLandslide) return "debris-flow candidate AOI";
+  if (isConstruction) return "ambiguous construction site";
+  return "unspecified target";
+}
+
 function fallbackIntent(prompt) {
+  const raw = String(prompt || "");
   const lower = String(prompt || "").toLowerCase();
-  const isConstruction = lower.includes("construction") || lower.includes("site");
-  const isWildfire = lower.includes("wildfire") || lower.includes("fire");
+  const isConstruction = lower.includes("construction") || lower.includes("site") || /施工|工地/.test(raw);
+  const isWildfire = lower.includes("wildfire") || lower.includes("fire") || /森林大火|山火|火災/.test(raw);
+  const isLandslide = lower.includes("landslide") || lower.includes("debris") || lower.includes("mudslide") || /土石流|山崩/.test(raw);
   const isCustomDrill = lower.includes("custom") || lower.includes("slew") || lower.includes("off-nadir") || lower.includes("washington");
   const needsClarification = isConstruction && lower.includes("this site");
+  const targetLabel = fallbackTargetLabel(raw, { isCustomDrill, isWildfire, isConstruction, isLandslide });
+  const hasCandidateTarget = isWildfire || isCustomDrill || isLandslide || /alishan|阿里山|taiwan|台灣|臺灣/i.test(raw);
 
   return {
-    mission_category: isCustomDrill ? "custom_off_nadir_imaging_drill" : isConstruction ? "recurring_site_monitoring" : isWildfire ? "urgent_disaster_response" : "change_detection",
-    priority: isWildfire || isCustomDrill ? "high" : "routine",
+    mission_category: isCustomDrill ? "custom_off_nadir_imaging_drill" : isConstruction ? "recurring_site_monitoring" : isWildfire || isLandslide ? "urgent_disaster_response" : "change_detection",
+    priority: isWildfire || isCustomDrill || isLandslide ? "high" : "routine",
     target_resolution: {
-      status: needsClarification ? "needs_clarification" : isWildfire || isCustomDrill ? "candidate" : "needs_clarification",
-      label: isCustomDrill ? "Washington D.C. custom AOI" : isWildfire ? "Rocky Mountains candidate AOI" : isConstruction ? "ambiguous construction site" : "unspecified target",
-      geometry: isWildfire ? "regional_area" : "point"
+      status: needsClarification ? "needs_clarification" : hasCandidateTarget ? "candidate" : "needs_clarification",
+      label: targetLabel,
+      geometry: isWildfire || isLandslide ? "regional_area" : "point"
     },
     observation_request: {
       payload_family: "optical",
-      gsd_target_m: isWildfire ? 3 : 1,
+      gsd_target_m: isWildfire || isLandslide ? 3 : 1,
       cadence: isConstruction ? "daily" : "once",
-      delivery_latency: isWildfire ? "rapid" : "best_effort"
+      delivery_latency: isWildfire || isLandslide ? "rapid" : "best_effort"
     },
     constraints: {
       preserve_existing_missions: true,
@@ -200,7 +235,7 @@ export async function POST(request) {
   const { prompt, provider } = await request.json();
 
   if (!prompt || typeof prompt !== "string") {
-    return Response.json({ error: "Missing prompt" }, { status: 400 });
+    return json({ error: "Missing prompt" }, { status: 400 });
   }
 
   const requestedProvider = ["auto", "openrouter", "grok", "openai"].includes(provider) ? provider : "auto";
@@ -216,7 +251,7 @@ export async function POST(request) {
         responseFormat: false
       });
       if (openRouterIntent) {
-        return Response.json({ source: "openrouter", intent: openRouterIntent });
+        return json({ source: "openrouter", intent: openRouterIntent });
       }
     } catch (error) {
       providerErrors.push({ source: "openrouter", message: error.message });
@@ -230,7 +265,7 @@ export async function POST(request) {
         model: process.env.OPENROUTER_GROK_MODEL || "x-ai/grok-4.3"
       });
       if (grokIntent) {
-        return Response.json({ source: "openrouter_grok", intent: grokIntent });
+        return json({ source: "openrouter_grok", intent: grokIntent });
       }
     } catch (error) {
       providerErrors.push({ source: "openrouter_grok", message: error.message });
@@ -241,14 +276,14 @@ export async function POST(request) {
     try {
       const openAiIntent = await callOpenAI(prompt, schema);
       if (openAiIntent) {
-        return Response.json({ source: "openai", intent: openAiIntent });
+        return json({ source: "openai", intent: openAiIntent });
       }
     } catch (error) {
       providerErrors.push({ source: "openai", message: error.message });
     }
   }
 
-  return Response.json({
+  return json({
     source: "fallback",
     warning: providerErrors.length
       ? "Configured LLM provider failed. Returning deterministic fallback intent."
