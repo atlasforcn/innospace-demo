@@ -84,6 +84,13 @@ function normalizeIntent(intent, prompt) {
     intent?.constraints && typeof intent.constraints === "object" && !Array.isArray(intent.constraints)
       ? intent.constraints
       : {};
+  const normalizedTargetStatus = targetStatuses.has(targetResolution.status)
+    ? targetResolution.status
+    : fallback.target_resolution.status;
+  const targetStatus =
+    fallback.target_resolution.status !== "needs_clarification" && normalizedTargetStatus === "needs_clarification"
+      ? fallback.target_resolution.status
+      : normalizedTargetStatus;
 
   return {
     ...fallback,
@@ -92,7 +99,7 @@ function normalizeIntent(intent, prompt) {
     priority: priorities.has(intent?.priority) ? intent.priority : fallback.priority,
     target_resolution: {
       ...targetResolution,
-      status: targetStatuses.has(targetResolution.status) ? targetResolution.status : fallback.target_resolution.status,
+      status: targetStatus,
       geometry: geometries.has(targetResolution.geometry) ? targetResolution.geometry : fallback.target_resolution.geometry
     },
     observation_request: {
@@ -106,7 +113,7 @@ function normalizeIntent(intent, prompt) {
       ...constraintOverrides
     },
     operator_gate: typeof intent?.operator_gate === "boolean" ? intent.operator_gate : fallback.operator_gate,
-    clarification_questions: Array.isArray(intent?.clarification_questions)
+    clarification_questions: targetStatus === "needs_clarification" && Array.isArray(intent?.clarification_questions)
       ? intent.clarification_questions
       : fallback.clarification_questions
   };
