@@ -49,23 +49,79 @@ function extractOutputText(responseJson) {
   return chunks.join("");
 }
 
-export async function POST(request) {
-  const { prompt } = await request.json();
+function parseJsonObject(text) {
+  const trimmed = String(text || "").trim().replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
 
-  if (!prompt || typeof prompt !== "string") {
-    return Response.json({ error: "Missing prompt" }, { status: 400 });
+  try {
+    return JSON.parse(trimmed);
+  } catch (error) {
+    const start = trimmed.indexOf("{");
+    const end = trimmed.lastIndexOf("}");
+    if (start === -1 || end === -1 || end <= start) throw error;
+    return JSON.parse(trimmed.slice(start, end + 1));
+  }
+}
+
+function normalizeIntent(intent, prompt) {
+  const fallback = fallbackIntent(prompt);
+
+  return {
+    ...fallback,
+    ...intent,
+    target_resolution: {
+      ...fallback.target_resolution,
+      ...(intent?.target_resolution || {})
+    },
+    observation_request: {
+      ...fallback.observation_request,
+      ...(intent?.observation_request || {})
+    },
+    constraints: {
+      ...fallback.constraints,
+      ...(intent?.constraints || {})
+    },
+    clarification_questions: Array.isArray(intent?.clarification_questions)
+      ? intent.clarification_questions
+      : fallback.clarification_questions
+  };
+}
+
+const missionIntentSystem =
+  "Convert EO mission requests into MissionIntent JSON only. If target location is ambiguous, set target_resolution.status to needs_clarification and ask precise clarification questions. Never invent spacecraft commands. The JSON object must include mission_category, priority, target_resolution, observation_request, constraints, operator_gate, and clarification_questions.";
+
+async function callOpenRouter(prompt) {
+  if (!process.env.OPENROUTER_API_KEY) return null;
+
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: "Bearer " + process.env.OPENROUTER_API_KEY,
+      "HTTP-Referer": "https://innospace-demo.vercel.app",
+      "X-Title": "INNOspace Mission Demo"
+    },
+    body: JSON.stringify({
+      model: process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini",
+      messages: [
+        { role: "system", content: missionIntentSystem },
+        { role: "user", content: prompt }
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.1
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
   }
 
-  const schemaPath = path.join(process.cwd(), "schemas", "mission-intent.schema.json");
-  const schema = JSON.parse(await fs.readFile(schemaPath, "utf8"));
+  const responseJson = await response.json();
+  const content = responseJson.choices?.[0]?.message?.content;
+  return normalizeIntent(parseJsonObject(content), prompt);
+}
 
-  if (!process.env.OPENAI_API_KEY) {
-    return Response.json({
-      source: "fallback",
-      warning: "OPENAI_API_KEY is not configured. Returning deterministic fallback intent.",
-      intent: fallbackIntent(prompt)
-    });
-  }
+async function callOpenAI(prompt, schema) {
+  if (!process.env.OPENAI_API_KEY) return null;
 
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -76,11 +132,7 @@ export async function POST(request) {
     body: JSON.stringify({
       model: process.env.OPENAI_MODEL || "gpt-4.1-mini",
       input: [
-        {
-          role: "system",
-          content:
-            "Convert EO mission requests into MissionIntent JSON only. If target location is ambiguous, set target_resolution.status to needs_clarification and ask precise clarification questions. Never invent spacecraft commands."
-        },
+        { role: "system", content: missionIntentSystem },
         { role: "user", content: prompt }
       ],
       text: {
@@ -95,28 +147,48 @@ export async function POST(request) {
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    return Response.json({
-      source: "fallback",
-      warning: "OpenAI API request failed. Returning deterministic fallback intent.",
-      detail: errorText,
-      intent: fallbackIntent(prompt)
-    });
+    throw new Error(await response.text());
   }
 
   const responseJson = await response.json();
-  const outputText = extractOutputText(responseJson);
-  let intent;
+  return normalizeIntent(parseJsonObject(extractOutputText(responseJson)), prompt);
+}
 
-  try {
-    intent = JSON.parse(outputText);
-  } catch (error) {
-    return Response.json({
-      source: "fallback",
-      warning: "OpenAI API response could not be parsed. Returning deterministic fallback intent.",
-      intent: fallbackIntent(prompt)
-    });
+export async function POST(request) {
+  const { prompt } = await request.json();
+
+  if (!prompt || typeof prompt !== "string") {
+    return Response.json({ error: "Missing prompt" }, { status: 400 });
   }
 
-  return Response.json({ source: "openai", intent });
+  const schemaPath = path.join(process.cwd(), "schemas", "mission-intent.schema.json");
+  const schema = JSON.parse(await fs.readFile(schemaPath, "utf8"));
+  const providerErrors = [];
+
+  try {
+    const openRouterIntent = await callOpenRouter(prompt);
+    if (openRouterIntent) {
+      return Response.json({ source: "openrouter", intent: openRouterIntent });
+    }
+  } catch (error) {
+    providerErrors.push({ source: "openrouter", message: error.message });
+  }
+
+  try {
+    const openAiIntent = await callOpenAI(prompt, schema);
+    if (openAiIntent) {
+      return Response.json({ source: "openai", intent: openAiIntent });
+    }
+  } catch (error) {
+    providerErrors.push({ source: "openai", message: error.message });
+  }
+
+  return Response.json({
+    source: "fallback",
+    warning: providerErrors.length
+      ? "Configured LLM provider failed. Returning deterministic fallback intent."
+      : "No LLM provider API key is configured. Returning deterministic fallback intent.",
+    provider_errors: providerErrors,
+    intent: fallbackIntent(prompt)
+  });
 }

@@ -1832,6 +1832,16 @@ async function requestLlmIntent() {
   }
 }
 
+async function requestGeocode(address) {
+  try {
+    const response = await fetch(`/api/geocode?q=${encodeURIComponent(address)}`);
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (error) {
+    return null;
+  }
+}
+
 function appendLlmIntentSummary(result) {
   if (!result || !result.intent) return;
 
@@ -1906,12 +1916,21 @@ async function analyzeMission() {
   updatePresentationStep();
 }
 
-function resolveConstructionTarget(mode) {
+function resolveConstructionTarget(mode, geocodeResult = null) {
   constructionResolved = true;
+  const geocodeNote =
+    geocodeResult?.source === "google" && geocodeResult.result?.location
+      ? ` Google Maps resolved it to ${geocodeResult.result.formatted_address} (${geocodeResult.result.location.lat.toFixed(4)}, ${geocodeResult.result.location.lng.toFixed(4)}).`
+      : "";
+  const geocodeNoteZh =
+    geocodeResult?.source === "google" && geocodeResult.result?.location
+      ? ` Google Maps 已解析為 ${geocodeResult.result.formatted_address}（${geocodeResult.result.location.lat.toFixed(4)}, ${geocodeResult.result.location.lng.toFixed(4)}）。`
+      : "";
+
   clarificationBox.className = "clarification-box ready";
   clarificationBox.innerHTML =
     mode === "address"
-      ? "<strong>Target resolved / 目標已解析。</strong><p>The provided address has been converted into a geolocated construction AOI. The recurring imaging planner can continue. / 地址已轉為可定位的工地 AOI，系統可以繼續建立週期性拍攝計畫。</p>"
+      ? `<strong>Target resolved / 目標已解析。</strong><p>The provided address has been converted into a geolocated construction AOI.${geocodeNote} The recurring imaging planner can continue. / 地址已轉為可定位的工地 AOI。${geocodeNoteZh}系統可以繼續建立週期性拍攝計畫。</p>`
       : "<strong>AOI accepted / AOI 已接受。</strong><p>The map-defined construction boundary has been converted into a target geometry. The recurring imaging planner can continue. / 地圖框選的工地邊界已轉為目標幾何，系統可以繼續規劃。</p>";
   mapCaption.textContent = "Construction site AOI resolved and ready for recurring monitoring. / 工地 AOI 已解析，可進入週期性監測。";
   mapBadge.className = "pill";
@@ -1999,12 +2018,18 @@ nextStepButton.addEventListener("click", () => {
 analyzeButton.addEventListener("click", analyzeMission);
 approveButton.addEventListener("click", approveMission);
 exportButton.addEventListener("click", exportCommandPacket);
-resolveAddressButton.addEventListener("click", () => {
+resolveAddressButton.addEventListener("click", async () => {
   if (!addressInput.value.trim()) {
     addressInput.focus();
     return;
   }
-  resolveConstructionTarget("address");
+
+  resolveAddressButton.disabled = true;
+  resolveAddressButton.textContent = "Resolving / 解析中";
+  const geocodeResult = await requestGeocode(addressInput.value.trim());
+  resolveAddressButton.disabled = false;
+  resolveAddressButton.textContent = "Resolve Address / 解析地址";
+  resolveConstructionTarget("address", geocodeResult);
 });
 
 generateConstellationButton.addEventListener("click", () => {
