@@ -1846,7 +1846,7 @@ function appendLlmIntentSummary(result) {
   if (!result || !result.intent) return;
 
   const rows = [
-    ["LLM source / LLM 來源", result.source === "openai" ? "OpenAI API" : "Fallback parser / 後備解析器"],
+    ["LLM source / LLM 來源", llmSourceLabel(result.source)],
     ["LLM mission / LLM 任務分類", result.intent.mission_category],
     ["Target status / 目標狀態", result.intent.target_resolution?.status || "unknown"],
     ["Payload family / 載荷族群", result.intent.observation_request?.payload_family || "unknown"]
@@ -1870,6 +1870,13 @@ function appendLlmIntentSummary(result) {
     note.textContent = result.warning;
     intentSummary.parentElement.append(note);
   }
+}
+
+function llmSourceLabel(source) {
+  if (source === "openrouter") return "OpenRouter Free / OpenRouter 免費路由";
+  if (source === "openrouter_grok") return "OpenRouter Grok / OpenRouter Grok 備援";
+  if (source === "openai") return "OpenAI API";
+  return "Fallback parser / 後備解析器";
 }
 
 async function analyzeMission() {

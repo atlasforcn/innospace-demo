@@ -110,19 +110,20 @@ function normalizeIntent(intent, prompt) {
 const missionIntentSystem =
   "Convert EO mission requests into MissionIntent JSON only. If target location is ambiguous, set target_resolution.status to needs_clarification and ask precise clarification questions. Never invent spacecraft commands. The JSON object must include mission_category, priority, target_resolution, observation_request, constraints, operator_gate, and clarification_questions.";
 
-async function callOpenRouter(prompt) {
-  if (!process.env.OPENROUTER_API_KEY) return null;
+async function callOpenRouter(prompt, options = {}) {
+  const apiKey = options.apiKey || process.env.OPENROUTER_API_KEY;
+  if (!apiKey) return null;
 
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: "Bearer " + process.env.OPENROUTER_API_KEY,
+      Authorization: "Bearer " + apiKey,
       "HTTP-Referer": "https://innospace-demo.vercel.app",
       "X-Title": "INNOspace Mission Demo"
     },
     body: JSON.stringify({
-      model: process.env.OPENROUTER_MODEL || "openrouter/free",
+      model: options.model || process.env.OPENROUTER_MODEL || "openrouter/free",
       messages: [
         { role: "system", content: missionIntentSystem },
         { role: "user", content: prompt }
@@ -176,32 +177,54 @@ async function callOpenAI(prompt, schema) {
 }
 
 export async function POST(request) {
-  const { prompt } = await request.json();
+  const { prompt, provider } = await request.json();
 
   if (!prompt || typeof prompt !== "string") {
     return Response.json({ error: "Missing prompt" }, { status: 400 });
   }
 
+  const requestedProvider = ["auto", "openrouter", "grok", "openai"].includes(provider) ? provider : "auto";
   const schemaPath = path.join(process.cwd(), "schemas", "mission-intent.schema.json");
   const schema = JSON.parse(await fs.readFile(schemaPath, "utf8"));
   const providerErrors = [];
 
-  try {
-    const openRouterIntent = await callOpenRouter(prompt);
-    if (openRouterIntent) {
-      return Response.json({ source: "openrouter", intent: openRouterIntent });
+  if (requestedProvider === "auto" || requestedProvider === "openrouter") {
+    try {
+      const openRouterIntent = await callOpenRouter(prompt, {
+        apiKey: process.env.OPENROUTER_API_KEY,
+        model: process.env.OPENROUTER_MODEL || "openrouter/free"
+      });
+      if (openRouterIntent) {
+        return Response.json({ source: "openrouter", intent: openRouterIntent });
+      }
+    } catch (error) {
+      providerErrors.push({ source: "openrouter", message: error.message });
     }
-  } catch (error) {
-    providerErrors.push({ source: "openrouter", message: error.message });
   }
 
-  try {
-    const openAiIntent = await callOpenAI(prompt, schema);
-    if (openAiIntent) {
-      return Response.json({ source: "openai", intent: openAiIntent });
+  if (requestedProvider === "auto" || requestedProvider === "grok") {
+    try {
+      const grokIntent = await callOpenRouter(prompt, {
+        apiKey: process.env.OPENROUTER_API_GROK_KEY,
+        model: process.env.OPENROUTER_GROK_MODEL || "x-ai/grok-4.3"
+      });
+      if (grokIntent) {
+        return Response.json({ source: "openrouter_grok", intent: grokIntent });
+      }
+    } catch (error) {
+      providerErrors.push({ source: "openrouter_grok", message: error.message });
     }
-  } catch (error) {
-    providerErrors.push({ source: "openai", message: error.message });
+  }
+
+  if (requestedProvider === "auto" || requestedProvider === "openai") {
+    try {
+      const openAiIntent = await callOpenAI(prompt, schema);
+      if (openAiIntent) {
+        return Response.json({ source: "openai", intent: openAiIntent });
+      }
+    } catch (error) {
+      providerErrors.push({ source: "openai", message: error.message });
+    }
   }
 
   return Response.json({

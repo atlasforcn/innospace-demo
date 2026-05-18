@@ -168,21 +168,29 @@ The project has been upgraded to a Next.js app so Vercel can run a server-side A
 - LLM API route / LLM 後端 API: `app/api/interpret/route.js`
 - Static browser assets / 前端靜態資源: `public/styles.css`, `public/script.js`
 
-Set this environment variable in Vercel Project Settings before using the real model:  
-若要使用真實模型，請在 Vercel Project Settings 設定環境變數：
+Set these environment variables in Vercel Project Settings before using the real model chain:  
+若要使用真實模型鏈，請在 Vercel Project Settings 設定環境變數：
 
 ```text
-OPENAI_API_KEY=your_new_key_here
+OPENROUTER_API_KEY=your_openrouter_key_here
+OPENROUTER_API_GROK_KEY=your_backup_openrouter_key_for_grok_here
+OPENAI_API_KEY=your_openai_backup_key_here
+GOOGLE_MAPS_API_KEY=your_google_maps_key_here
 ```
 
 Optional / 可選：
 
 ```text
+OPENROUTER_MODEL=openrouter/free
+OPENROUTER_GROK_MODEL=x-ai/grok-4.3
 OPENAI_MODEL=gpt-4.1-mini
 ```
 
-If `OPENAI_API_KEY` is missing, `/api/interpret` returns a deterministic fallback intent so the demo remains usable.  
-如果沒有設定 `OPENAI_API_KEY`，`/api/interpret` 會回傳後備解析結果，demo 仍可操作。
+The LLM route uses this fallback order: OpenRouter free route, OpenRouter Grok route, OpenAI, then deterministic fallback.  
+LLM route 的備援順序是：OpenRouter 免費路由、OpenRouter Grok 路由、OpenAI，最後才是固定規則解析。
+
+If all LLM providers are missing or unavailable, `/api/interpret` returns a deterministic fallback intent so the demo remains usable.  
+如果所有 LLM provider 都沒有設定或暫時不可用，`/api/interpret` 會回傳後備解析結果，demo 仍可操作。
 
 ## Current implementation note / 目前實作說明
 
