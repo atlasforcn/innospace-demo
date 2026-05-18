@@ -64,17 +64,38 @@ function parseJsonObject(text) {
 
 function normalizeIntent(intent, prompt) {
   const fallback = fallbackIntent(prompt);
+  const missionCategories = new Set(["custom_off_nadir_imaging_drill", "recurring_site_monitoring", "urgent_disaster_response", "change_detection"]);
+  const priorities = new Set(["routine", "elevated", "high", "critical"]);
+  const targetStatuses = new Set(["resolved", "candidate", "needs_clarification"]);
+  const geometries = new Set(["point", "bbox", "polygon", "regional_area"]);
+  const payloadFamilies = new Set(["optical", "multispectral", "thermal_ir", "sar", "communications_relay"]);
+  const cadences = new Set(["once", "daily", "weekly", null]);
+  const deliveryLatencies = new Set(["best_effort", "rapid", "near_real_time", null]);
+
+  const targetResolution = {
+    ...fallback.target_resolution,
+    ...(intent?.target_resolution || {})
+  };
+  const observationRequest = {
+    ...fallback.observation_request,
+    ...(intent?.observation_request || {})
+  };
 
   return {
     ...fallback,
     ...intent,
+    mission_category: missionCategories.has(intent?.mission_category) ? intent.mission_category : fallback.mission_category,
+    priority: priorities.has(intent?.priority) ? intent.priority : fallback.priority,
     target_resolution: {
-      ...fallback.target_resolution,
-      ...(intent?.target_resolution || {})
+      ...targetResolution,
+      status: targetStatuses.has(targetResolution.status) ? targetResolution.status : fallback.target_resolution.status,
+      geometry: geometries.has(targetResolution.geometry) ? targetResolution.geometry : fallback.target_resolution.geometry
     },
     observation_request: {
-      ...fallback.observation_request,
-      ...(intent?.observation_request || {})
+      ...observationRequest,
+      payload_family: payloadFamilies.has(observationRequest.payload_family) ? observationRequest.payload_family : fallback.observation_request.payload_family,
+      cadence: cadences.has(observationRequest.cadence) ? observationRequest.cadence : fallback.observation_request.cadence,
+      delivery_latency: deliveryLatencies.has(observationRequest.delivery_latency) ? observationRequest.delivery_latency : fallback.observation_request.delivery_latency
     },
     constraints: {
       ...fallback.constraints,
