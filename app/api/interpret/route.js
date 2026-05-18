@@ -113,6 +113,19 @@ const missionIntentSystem =
 async function callOpenRouter(prompt, options = {}) {
   const apiKey = options.apiKey || process.env.OPENROUTER_API_KEY;
   if (!apiKey) return null;
+  const model = options.model || process.env.OPENROUTER_MODEL || "openrouter/free";
+  const requestBody = {
+    model,
+    messages: [
+      { role: "system", content: missionIntentSystem },
+      { role: "user", content: prompt }
+    ],
+    temperature: 0.1
+  };
+
+  if (options.responseFormat !== false) {
+    requestBody.response_format = { type: "json_object" };
+  }
 
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
@@ -122,15 +135,7 @@ async function callOpenRouter(prompt, options = {}) {
       "HTTP-Referer": "https://innospace-demo.vercel.app",
       "X-Title": "INNOspace Mission Demo"
     },
-    body: JSON.stringify({
-      model: options.model || process.env.OPENROUTER_MODEL || "openrouter/free",
-      messages: [
-        { role: "system", content: missionIntentSystem },
-        { role: "user", content: prompt }
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.1
-    })
+    body: JSON.stringify(requestBody)
   });
 
   if (!response.ok) {
@@ -139,6 +144,9 @@ async function callOpenRouter(prompt, options = {}) {
 
   const responseJson = await response.json();
   const content = responseJson.choices?.[0]?.message?.content;
+  if (!content) {
+    throw new Error(`OpenRouter returned an empty message from ${responseJson.model || model}`);
+  }
   return normalizeIntent(parseJsonObject(content), prompt);
 }
 
@@ -192,7 +200,8 @@ export async function POST(request) {
     try {
       const openRouterIntent = await callOpenRouter(prompt, {
         apiKey: process.env.OPENROUTER_API_KEY,
-        model: process.env.OPENROUTER_MODEL || "openrouter/free"
+        model: process.env.OPENROUTER_MODEL || "openrouter/free",
+        responseFormat: false
       });
       if (openRouterIntent) {
         return Response.json({ source: "openrouter", intent: openRouterIntent });
