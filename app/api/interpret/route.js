@@ -96,12 +96,27 @@ export async function POST(request) {
 
   if (!response.ok) {
     const errorText = await response.text();
-    return Response.json({ error: "OpenAI API request failed", detail: errorText }, { status: 502 });
+    return Response.json({
+      source: "fallback",
+      warning: "OpenAI API request failed. Returning deterministic fallback intent.",
+      detail: errorText,
+      intent: fallbackIntent(prompt)
+    });
   }
 
   const responseJson = await response.json();
   const outputText = extractOutputText(responseJson);
-  const intent = JSON.parse(outputText);
+  let intent;
+
+  try {
+    intent = JSON.parse(outputText);
+  } catch (error) {
+    return Response.json({
+      source: "fallback",
+      warning: "OpenAI API response could not be parsed. Returning deterministic fallback intent.",
+      intent: fallbackIntent(prompt)
+    });
+  }
 
   return Response.json({ source: "openai", intent });
 }
