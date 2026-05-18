@@ -101,7 +101,7 @@ async function callOpenRouter(prompt) {
       "X-Title": "INNOspace Mission Demo"
     },
     body: JSON.stringify({
-      model: process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini",
+      model: process.env.OPENROUTER_MODEL || "openrouter/free",
       messages: [
         { role: "system", content: missionIntentSystem },
         { role: "user", content: prompt }
