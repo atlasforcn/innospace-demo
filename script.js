@@ -531,6 +531,8 @@ function clearMissionMapImage(status = "Auto scenario imagery / 自動情境底�
   activeMapImageToken += 1;
   missionMap.classList.remove("has-image");
   missionMap.classList.remove("has-osm");
+  missionMap.classList.remove("has-osm-tiles");
+  clearOsmTileLayer();
   missionMap.style.removeProperty("--map-image");
   missionMap.style.removeProperty("--map-position");
   osmMapFrame.classList.add("hidden");
@@ -544,21 +546,11 @@ function googleStaticMapUrl(viewKey) {
   return url.toString();
 }
 
-function freeStaticMapUrl(viewKey) {
-  const view = mapLiveViews[viewKey] || mapLiveViews.wildfire;
-  const [lat, lng] = view.center;
-  const url = new URL("https://staticmap.openstreetmap.de/staticmap.php");
-  url.searchParams.set("center", `${lat},${lng}`);
-  url.searchParams.set("zoom", String(view.zoom));
-  url.searchParams.set("size", "900x520");
-  url.searchParams.set("maptype", "mapnik");
-  url.searchParams.set("markers", `${lat},${lng},ol-marker`);
-  return url.toString();
-}
-
 function setMapBackground(url, status, position = "center") {
   missionMap.classList.remove("has-image");
   missionMap.classList.remove("has-osm");
+  missionMap.classList.remove("has-osm-tiles");
+  clearOsmTileLayer();
   osmMapFrame.classList.add("hidden");
   osmMapFrame.removeAttribute("src");
   missionMap.classList.add("has-image");
@@ -598,7 +590,7 @@ function probeMapImage(url) {
 
     image.onload = () => finish(image.naturalWidth > 0 && image.naturalHeight > 0);
     image.onerror = () => finish(false);
-    image.src = url;
+  image.src = url;
   });
 }
 
@@ -608,6 +600,74 @@ async function tryMapProvider({ token, url, status, loadingStatus }) {
   if (token !== activeMapImageToken) return true;
   if (!ok) return false;
   setMapBackground(url, status, "center");
+  return true;
+}
+
+function osmTileUrl(zoom, x, y) {
+  return `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`;
+}
+
+function latLngToTile(lat, lng, zoom) {
+  const scale = 2 ** zoom;
+  const x = Math.floor(((lng + 180) / 360) * scale);
+  const latRad = (lat * Math.PI) / 180;
+  const y = Math.floor(((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * scale);
+  return { x, y };
+}
+
+function clearOsmTileLayer() {
+  missionMap.querySelector(".osm-tile-layer")?.remove();
+}
+
+function renderOsmTileLayer(viewKey) {
+  const view = mapLiveViews[viewKey] || mapLiveViews.wildfire;
+  const [lat, lng] = view.center;
+  const zoom = view.zoom;
+  const centerTile = latLngToTile(lat, lng, zoom);
+  const layer = document.createElement("div");
+  layer.className = "osm-tile-layer";
+
+  const columns = Math.max(4, Math.ceil((missionMap.clientWidth || 900) / 256) + 2);
+  const rows = Math.max(3, Math.ceil((missionMap.clientHeight || 520) / 256) + 2);
+  const startX = centerTile.x - Math.floor(columns / 2);
+  const startY = centerTile.y - Math.floor(rows / 2);
+
+  layer.style.gridTemplateColumns = `repeat(${columns}, 256px)`;
+  layer.style.gridTemplateRows = `repeat(${rows}, 256px)`;
+  layer.style.width = `${columns * 256}px`;
+  layer.style.height = `${rows * 256}px`;
+
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      const image = document.createElement("img");
+      image.alt = "";
+      image.decoding = "async";
+      image.src = osmTileUrl(zoom, startX + column, startY + row);
+      layer.append(image);
+    }
+  }
+
+  clearOsmTileLayer();
+  missionMap.classList.remove("has-image");
+  missionMap.classList.remove("has-osm");
+  missionMap.classList.add("has-osm-tiles");
+  missionMap.style.removeProperty("--map-image");
+  missionMap.style.removeProperty("--map-position");
+  osmMapFrame.classList.add("hidden");
+  osmMapFrame.removeAttribute("src");
+  missionMap.prepend(layer);
+}
+
+async function tryFreeMapProvider({ token, viewKey, status, loadingStatus }) {
+  const view = mapLiveViews[viewKey] || mapLiveViews.wildfire;
+  const [lat, lng] = view.center;
+  const centerTile = latLngToTile(lat, lng, view.zoom);
+  mapImageStatus.textContent = loadingStatus;
+  const ok = await probeMapImage(osmTileUrl(view.zoom, centerTile.x, centerTile.y));
+  if (token !== activeMapImageToken) return true;
+  if (!ok) return false;
+  renderOsmTileLayer(viewKey);
+  mapImageStatus.textContent = status;
   return true;
 }
 
@@ -656,7 +716,6 @@ async function applyMissionMapImage(scenarioKey = activeScenario, options = {}) 
   }
 
   const googleUrl = googleStaticMapUrl(viewKey);
-  const freeUrl = freeStaticMapUrl(viewKey);
 
   if (selectedMapImageSource === "google" || selectedMapImageSource === "auto") {
     const googleOk = await tryMapProvider({
@@ -669,9 +728,9 @@ async function applyMissionMapImage(scenarioKey = activeScenario, options = {}) 
   }
 
   if (selectedMapImageSource === "osm" || selectedMapImageSource === "google" || selectedMapImageSource === "auto") {
-    const freeOk = await tryMapProvider({
+    const freeOk = await tryFreeMapProvider({
       token,
-      url: freeUrl,
+      viewKey,
       status: view.freeStatus,
       loadingStatus: "Google unavailable; checking free map / Google 不可用，正在測試免費地圖"
     });

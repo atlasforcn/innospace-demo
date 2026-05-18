@@ -839,6 +839,35 @@ select {
   pointer-events: none;
 }
 
+.mission-map.has-osm-tiles {
+  background: #d9e4dc;
+}
+
+.mission-map.has-osm-tiles::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(180deg, rgba(7, 16, 25, 0.08), rgba(7, 16, 25, 0.5));
+  pointer-events: none;
+}
+
+.osm-tile-layer {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 0;
+  display: grid;
+  transform: translate(-50%, -50%);
+  filter: saturate(0.82) contrast(0.98);
+}
+
+.osm-tile-layer img {
+  width: 256px;
+  height: 256px;
+  display: block;
+}
+
 .mission-map.idle::after {
   content: "Analysis results will appear here / 分析結果將顯示於此";
   position: absolute;
