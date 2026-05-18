@@ -17,7 +17,15 @@ const fallbackLocations = [
 
 function fallbackGeocode(query) {
   const match = fallbackLocations.find((item) => item.pattern.test(query));
-  return match || {
+  if (match) {
+    return {
+      formatted_address: match.formatted_address,
+      location: match.location,
+      place_id: match.place_id
+    };
+  }
+
+  return {
     formatted_address: query,
     location: null,
     place_id: "fallback-unresolved"
@@ -58,6 +66,8 @@ export async function GET(request) {
       return Response.json({
         source: "fallback",
         warning: `Google Geocoding returned ${data.status || "NO_STATUS"}.`,
+        google_status: data.status || null,
+        google_error_message: data.error_message || null,
         query,
         result: fallbackGeocode(query)
       });
