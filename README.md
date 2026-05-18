@@ -13,6 +13,7 @@ It is designed to show both future product value and practical mission feasibili
   - Geolocation resolution / 地理位置解析
   - GSD recommendation / GSD 建議
   - Satellite suitability comparison / 衛星適配性比較
+  - Off-nadir slew feasibility, slew time, and ADCS power trade-off / 斜視轉向可行性、轉向時間與姿態控制用電取捨
   - Recommended satellite selection / 推薦衛星選擇
   - ADCS and camera command breakdown / ADCS 與攝影機指令拆分
   - Per-step spacecraft state transition / 每一步的衛星狀態轉移
@@ -23,6 +24,7 @@ It is designed to show both future product value and practical mission feasibili
   - Clarification loop when the phrase `this site` is not geolocatable / 當 `this site` 無法轉成位置資訊時，系統會主動要求補充
   - Address-based or map-based AOI resolution / 支援地址解析或地圖框選 AOI
   - Daily monitoring plan with comparable lighting and viewing conditions / 產出每日拍攝，且盡量維持相近光影與觀測角度的監測計畫
+  - Comparable off-nadir geometry and maneuver energy checks / 檢查相近斜視角與轉向用電
   - Multi-asset recurring observation strategy / 多顆衛星輪值式長期觀測策略
   - ADCS and camera command breakdown / ADCS 與攝影機指令拆分
   - Per-step spacecraft state transition / 每一步的衛星狀態轉移
@@ -32,14 +34,18 @@ It is designed to show both future product value and practical mission feasibili
 - Guided demo flow / 導覽式展示流程
   - Initial blank analysis state before any request is processed / 初始進站時維持空白分析狀態
   - Results appear only after the operator clicks `Analyze Request` / 只有按下 `Analyze Request` 後才顯示系統分析結果
+  - Mission cards unlock through one state machine: `idle`, `blocked`, `planned`, `approved`, `exported` / 任務卡片依照同一套狀態機解鎖：`idle`、`blocked`、`planned`、`approved`、`exported`
+  - Fleet sandbox and map display are setup cards, not spacecraft tasking steps / 星系沙盒與地圖顯示屬於展示設定，不算衛星任務步驟
   - Mission approval is placed directly below the recommended plan / 批准任務按鈕直接放在建議任務計畫下方
   - An export action becomes available after approval / 批准後才顯示匯出指令封包的下一步動作
 
-- Custom constellation test area / 自訂衛星星系測試區
-  - Enable or disable custom constellation analysis / 可切換是否使用自訂星系進行分析
+- Custom Fleet Drill scenario / 自訂星系驗證情境
+  - Custom constellation is now its own scenario; presets keep fixed default fleets / 自訂星系現在是獨立情境，預設情境保留固定星系
+  - Activate the scenario from the third scenario button or `Run Custom Fleet Drill` / 可用第三個情境按鈕或 `Run Custom Fleet Drill` 執行
   - Set satellite count from 1 to 12 / 可設定 1 到 12 顆衛星
-  - Configure orbit type, battery, rough position, payload type, and spacecraft status / 可設定軌道類型、電量、粗略位置、酬載類型與衛星狀態
-  - Re-run the scenario planner using the custom assets / 可用自訂衛星重新執行情境規劃
+  - Configure orbit type, battery, rough position, payload type, spacecraft status, required slew angle, max slew angle, and slew rate / 可設定軌道類型、電量、粗略位置、酬載、衛星狀態、需要轉向角、最大轉向角與轉向速度
+  - The planner estimates slew time, settle time, ADCS energy, total task energy, and post-task battery / 規劃器估算轉向時間、穩定時間、ADCS 用電、總任務用電與任務後電量
+  - Mission map markers follow only the active custom scenario constellation / 地圖標記只會在自訂情境中跟著自訂星系同步
 
 ## How to view / 如何查看
 
@@ -50,22 +56,45 @@ Recommended walkthrough / 建議展示順序：
 
 1. Start with the wildfire preset and click `Analyze Request`  
    先選擇森林大火情境，按下 `Analyze Request`
-2. Review mission abstraction, satellite selection, and the recommended plan  
-   查看任務抽象化結果、衛星選擇與建議任務計畫
-3. Inspect the ADCS and camera commands under each step  
+2. Move through the unlocked mission cards: target gate, requirements, AOI/access, fleet readiness, feasibility rules, and candidate decision  
+   依序查看已解鎖的任務卡片：目標檢核、任務需求、區域與可見性、衛星可用性、可行性規則與候選決策
+3. Review the recommended plan and the selected spacecraft  
+   查看建議任務計畫與最建議衛星
+4. Inspect the ADCS and camera commands under each step  
    檢視每一步底下拆分出的 ADCS 與攝影機指令
-4. Click `Approve Mission Plan`  
+5. Click `Approve Mission Plan`  
    按下 `Approve Mission Plan`
-5. Review the revealed machine command packet  
+6. Review the revealed machine command packet  
    查看展開後的機器指令封包
-6. Switch to the construction preset  
+7. Switch to the construction preset  
    切換到建築工地監測情境
-7. Observe that the system pauses because `this site` is not geolocatable  
+8. Observe that the system pauses because `this site` is not geolocatable  
    觀察系統因為 `this site` 無法定位，而暫停往下規劃
-8. Resolve the target using an address or AOI drawing flow  
+9. Resolve the target using an address or AOI drawing flow  
    透過地址或地圖 AOI 框選完成目標解析
-9. Review the recurring monitoring plan and command sequence  
+10. Review the recurring monitoring plan and command sequence  
    查看週期性監測計畫與對應命令序列
+11. Switch to `Custom Fleet Drill`, edit the sandbox satellites, and run the custom drill  
+    切換到 `Custom Fleet Drill`，修改沙盒衛星後執行自訂驗證
+12. Review why each custom satellite is recommended, traded off, or rejected by slew capability and battery safety  
+    查看每顆自訂衛星為何因轉向能力與電量安全被推薦、保留或拒絕
+
+## Operator flow logic / 操作流程邏輯
+
+The demo uses a single tasking state machine so the interface cannot advance into spacecraft planning before the request is valid.  
+這個 demo 使用單一任務狀態機，避免介面在需求尚未有效前就進入衛星規劃。
+
+- `idle`: only mission intake is available; result cards are locked / 只開放任務輸入，結果卡片鎖定
+- `blocked`: target clarification is required; no satellite is scored or commanded / 需要補充目標資訊，不評分也不產生命令
+- `planned`: feasibility evidence and recommended plan are visible, but commands remain locked / 可看見可行性證據與建議計畫，但指令仍鎖定
+- `approved`: operator approval unlocks the command packet / 操作員批准後解鎖指令封包
+- `exported`: command packet export is simulated for handoff / 模擬匯出指令封包以供展示交接
+
+The left flow is always visible. Mission cards are opened only when their state allows it; setup cards stay available for scenario testing.  
+左側流程常駐顯示。任務卡片只有在狀態允許時才能開啟；展示設定卡片則保持可用，方便測試情境。
+
+Preset wildfire and construction scenarios intentionally ignore the custom sandbox so they remain stable for presentation. The sandbox feeds only the Custom Fleet Drill scenario.  
+森林大火與工地監測會刻意忽略自訂沙盒，確保展演時預設情境穩定；沙盒只會套用到自訂星系驗證情境。
 
 ## Research-backed model / 研究後新增的模型
 
@@ -73,6 +102,7 @@ The current demo now reflects a deeper satellite tasking model.
 目前 demo 已加入更完整的衛星任務判斷模型：
 
 - Orbit and viewing geometry / 軌道與觀測幾何
+- Attitude agility, slew time, settle time, and maneuver power / 姿態機動、轉向時間、穩定時間與機動用電
 - Payload family and achievable image quality / 載荷類型與可達成影像品質
 - Battery, storage, and spacecraft health / 電量、儲存與衛星健康狀態
 - Existing mission conflict handling / 既有任務衝突處理

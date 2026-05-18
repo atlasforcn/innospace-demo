@@ -10,26 +10,33 @@ A mission orchestration layer should evaluate candidate satellites across five f
    - off-nadir angle or SAR look geometry
    - required slew angle, settle time, and attitude recovery time
 
-2. Payload fit / 感測器適配
+2. Attitude agility / 姿態機動能力
+   - maximum off-nadir slew angle allowed by the spacecraft and payload
+   - slew rate and whether the spacecraft can point quickly enough for the request
+   - settle time before the payload can capture a usable image
+   - ADCS energy draw and post-task battery reserve
+   - whether attitude recovery would collide with a protected mission window
+
+3. Payload fit / 感測器適配
    - optical, multispectral, thermal infrared, SAR, or relay payload class
    - achievable GSD or image quality target
    - cloud/daylight restrictions for passive imaging
    - scene size, spectral mode, and whether the sensor matches the mission question
 
-3. Spacecraft health / 衛星健康
+4. Spacecraft health / 衛星健康
    - current battery state of charge and post-task reserve
    - power draw during imaging or communications
    - thermal margin
    - storage margin
    - current spacecraft mode, including safe or protected states
 
-4. Operational conflict / 任務衝突
+5. Operational conflict / 任務衝突
    - protected task windows
    - mission priority
    - whether the new request may preempt existing work
    - recovery time after off-nadir pointing or high-power operations
 
-5. Delivery path / 資料交付
+6. Delivery path / 資料交付
    - product size and storage reservation
    - next ground downlink window and expected data rate
    - whether crosslink or relay is needed

@@ -25,7 +25,7 @@
       <section class="presentation-toolbar" aria-label="Step presentation controls">
         <button id="prevStepButton" class="ghost-button" type="button">Previous / 上一步</button>
         <div class="presentation-step-summary">
-          <span id="currentStepBadge" class="phase-chip">Step 1 of 11 / 第 1 步，共 11 步</span>
+          <span id="currentStepBadge" class="phase-chip">Mission Step 1 of 9 / 任務第 1 步，共 9 步</span>
           <strong id="currentStepTitle">Mission Request / 任務需求</strong>
           <p id="currentStepHint">Each step is shown as one independent card for demo delivery. / 每個步驟會以獨立卡片呈現，方便展演。</p>
         </div>
@@ -38,7 +38,7 @@
             <span class="phase-chip">Always-on flow / 常駐流程</span>
             <div>
               <h2>Complete Card Flow / 完整卡片流程</h2>
-              <p>Every demo card is listed here and can be clicked directly. / 每張展演卡片都列在這裡，也可以直接點選跳轉。</p>
+              <p>Available mission cards can be opened directly; locked cards unlock after analysis or approval. Setup cards stay available. / 可用任務卡片可直接開啟；鎖定卡片會在分析或批准後解鎖，設定卡片則常駐可用。</p>
             </div>
           </div>
 
@@ -84,6 +84,7 @@
             <div class="scenario-buttons" role="group" aria-label="Scenario presets">
               <button class="scenario-button active" data-scenario="wildfire">Wildfire Response / 森林大火應變</button>
               <button class="scenario-button" data-scenario="construction">Construction Monitoring / 工地監測</button>
+              <button class="scenario-button" data-scenario="custom">Custom Fleet Drill / 自訂星系驗證</button>
             </div>
 
             <label class="field-label" for="missionPrompt">Prompt / 輸入需求</label>
@@ -100,10 +101,10 @@
               <h2>Custom Constellation / 自訂衛星星系</h2>
               <span class="pill muted">Test setup / 測試設定</span>
             </div>
-            <p class="input-helper">Use the defaults for a smooth demo, or adjust satellites when you want to prove the planner respects battery, payload, and status constraints. / 展示時可用預設值；若要驗證規劃器會遵守電量、酬載與狀態限制，可改自訂衛星。</p>
+            <p class="input-helper">This sandbox feeds only the Custom Fleet Drill scenario. The wildfire and construction presets keep their fixed demo constellations. / 這個沙盒只會套用到「自訂星系驗證」情境；森林大火與工地監測會保留固定預設星系。</p>
             <label class="toggle-row">
               <input id="customConstellationToggle" type="checkbox" />
-              <span>Use custom constellation for analysis / 使用自訂星系分析</span>
+              <span>Activate custom fleet scenario / 啟用自訂星系情境</span>
             </label>
             <div class="custom-controls">
               <label class="field-label" for="customSatelliteCount">Satellite count / 衛星數量</label>
@@ -112,7 +113,7 @@
             </div>
             <div id="customSatelliteEditor" class="custom-satellite-editor"></div>
             <div class="button-row compact">
-              <button id="applyCustomConstellationButton" class="secondary-button">Apply Custom Setup / 套用自訂設定</button>
+              <button id="applyCustomConstellationButton" class="secondary-button">Run Custom Fleet Drill / 執行自訂星系驗證</button>
             </div>
           </div>
 

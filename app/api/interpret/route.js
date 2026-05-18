@@ -7,15 +7,15 @@ function fallbackIntent(prompt) {
   const lower = String(prompt || "").toLowerCase();
   const isConstruction = lower.includes("construction") || lower.includes("site");
   const isWildfire = lower.includes("wildfire") || lower.includes("fire");
+  const isCustomDrill = lower.includes("custom") || lower.includes("slew") || lower.includes("off-nadir") || lower.includes("washington");
   const needsClarification = isConstruction && lower.includes("this site");
 
   return {
-    mission_category: isConstruction ? "recurring_site_monitoring" : isWildfire ? "urgent_disaster_response" : "change_detection",
-    priority: isWildfire ? "high" : "routine",
+    mission_category: isCustomDrill ? "custom_off_nadir_imaging_drill" : isConstruction ? "recurring_site_monitoring" : isWildfire ? "urgent_disaster_response" : "change_detection",
+    priority: isWildfire || isCustomDrill ? "high" : "routine",
     target_resolution: {
-      status: needsClarification ? "needs_clarification" : isWildfire ? "candidate" : "needs_clarification",
-      label: isWildfire ? "Rocky Mountains candidate AOI" : isConstruction ? "ambiguous construction site" : "unspecified target",
-      coordinates: null,
+      status: needsClarification ? "needs_clarification" : isWildfire || isCustomDrill ? "candidate" : "needs_clarification",
+      label: isCustomDrill ? "Washington D.C. custom AOI" : isWildfire ? "Rocky Mountains candidate AOI" : isConstruction ? "ambiguous construction site" : "unspecified target",
       geometry: isWildfire ? "regional_area" : "point"
     },
     observation_request: {
@@ -27,7 +27,7 @@ function fallbackIntent(prompt) {
     constraints: {
       preserve_existing_missions: true,
       comparable_lighting: isConstruction,
-      max_off_nadir_deg: isConstruction ? 8 : 25,
+      max_off_nadir_deg: isConstruction ? 8 : isCustomDrill ? 35 : 25,
       cloud_tolerance_pct: null
     },
     operator_gate: true,
@@ -96,27 +96,6 @@ export async function POST(request) {
 
   if (!response.ok) {
     const errorText = await response.text();
-    let errorCode = null;
-    let errorMessage = errorText;
-
-    try {
-      const parsed = JSON.parse(errorText);
-      errorCode = parsed?.error?.code || parsed?.error?.type || null;
-      errorMessage = parsed?.error?.message || errorText;
-    } catch {
-      // Keep the raw error text when OpenAI returns a non-JSON response.
-    }
-
-    const fallbackCodes = new Set(["insufficient_quota", "rate_limit_exceeded", "invalid_api_key"]);
-    if (fallbackCodes.has(errorCode)) {
-      return Response.json({
-        source: "fallback",
-        warning: `OpenAI API unavailable (${errorCode}). Returning deterministic fallback intent.`,
-        detail: errorMessage,
-        intent: fallbackIntent(prompt)
-      });
-    }
-
     return Response.json({ error: "OpenAI API request failed", detail: errorText }, { status: 502 });
   }
 

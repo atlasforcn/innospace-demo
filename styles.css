@@ -388,6 +388,12 @@ h2 {
   text-transform: uppercase;
 }
 
+.operator-progress .flow-section-label:not(:first-child) {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(163, 190, 214, 0.18);
+}
+
 .progress-step {
   appearance: none;
   display: grid;
@@ -455,6 +461,11 @@ h2 {
 
 .progress-step.locked {
   opacity: 0.52;
+  cursor: not-allowed;
+}
+
+.progress-step.locked span {
+  border-style: dashed;
 }
 
 .progress-step.presentation-current {

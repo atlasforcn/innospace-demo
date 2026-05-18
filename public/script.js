@@ -162,11 +162,29 @@ const workflowStepToPanel = {
   export: 8
 };
 
+const workflowProgressByState = {
+  idle: { completeThrough: -1, availableThrough: 0 },
+  blocked: { completeThrough: 0, availableThrough: 1, blockedIndex: 1 },
+  planned: { completeThrough: 6, availableThrough: 7 },
+  approved: { completeThrough: 7, availableThrough: 8 },
+  exported: { completeThrough: 8, availableThrough: 8 }
+};
+
 const mapImagePresets = {
   wildfire: {
     file: "images/mission-area-wildfire.svg",
     status: "Preset: Rocky Mountain wildfire AOI / 預存：落基山火場 AOI",
     position: "center"
+  },
+  custom: {
+    title: "Custom fleet drill / 自訂星系驗證",
+    nodes: [
+      ["Sandbox setup / 沙盒設定", "Operator edits satellite count, orbit, payload, battery, status, and attitude agility. / 操作員設定衛星數量、軌道、酬載、電量、狀態與姿態機動能力。"],
+      ["Custom request / 自訂需求", "The drill asks which custom spacecraft can image Washington D.C. without flying directly overhead. / 情境要求判斷哪些自訂衛星即使未飛越正上方，也能轉向拍攝華盛頓。"],
+      ["Slew trade-off / 轉向取捨", "Planner checks required off-nadir slew, maximum slew capability, slew time, settle time, and ADCS energy. / 規劃器檢查所需斜視角、最大轉向能力、轉向時間、穩定時間與 ADCS 用電。"],
+      ["Select asset / 選擇衛星", "Recommendation balances payload fit, attitude agility, battery after maneuver, and existing mission status. / 推薦結果同時考慮酬載、姿態機動、任務後電量與既有任務狀態。"],
+      ["Approve bounded commands / 批准受控指令", "Operator releases only ADCS, payload, and data commands within the demo command boundary. / 操作員只釋出 demo 邊界內的姿態、酬載與資料指令。"]
+    ]
   },
   construction: {
     file: "images/mission-area-construction.svg",
@@ -253,55 +271,67 @@ const scenarioFlowModels = {
 
 const workflowTextByState = {
   idle: {
-    badge: "Step 1 / 第一步",
-    text: "Start by selecting a scenario and analyzing the mission request. Optional constellation setup can be adjusted before analysis. / 先選情境並分析任務需求；自訂星系可在分析前調整。"
+    badge: "Intake / 輸入階段",
+    text: "Start with the mission request. Fleet sandbox and map display are setup controls, not flight tasking steps. / 先處理任務需求；星系沙盒與地圖顯示是展示設定，不是飛行任務步驟。"
   },
   blocked: {
-    badge: "Blocked / 等待澄清",
-    text: "Planning is intentionally paused because the target cannot yet become coordinates or an AOI. / 系統刻意暫停，因為目標尚未能轉成座標或 AOI。"
+    badge: "Target Hold / 目標暫停",
+    text: "Planning is paused at the target gate. No spacecraft is scored or commanded until coordinates, AOI, and imaging need are clear. / 系統停在目標檢核；座標、AOI 與成像需求清楚前，不評分也不下指令。"
   },
   planned: {
-    badge: "Review / 審核中",
-    text: "Review the mission area, constellation evidence, decision analysis, and recommended plan before approval. / 批准前請依序檢查任務區域、星系證據、決策分析與建議計畫。"
+    badge: "Operator Review / 操作員審核",
+    text: "The planner has produced evidence, candidate decisions, and an approval-ready plan. Commands remain locked until approval. / 規劃器已產出證據、候選決策與可批准計畫；指令仍待批准才解鎖。"
   },
   approved: {
-    badge: "Released / 已釋出",
+    badge: "Command Ready / 指令就緒",
     text: "Operator approval has unlocked the bounded command packet for export. / 操作員批准後，受控指令封包已可匯出。"
+  },
+  exported: {
+    badge: "Exported / 已匯出",
+    text: "The demo export is complete; the command packet remains visible for audit. / 展示用匯出完成，指令封包保留供審核。"
   }
 };
 
 const taskQueueByState = {
   idle: [
-    ["done", "Select scenario / 選擇情境", "Use wildfire or construction as the demo path."],
-    ["active", "Review request / 檢查需求", "Edit the natural-language prompt if needed."],
-    ["pending", "Optional constellation / 可選星系", "Use defaults or apply custom satellite states."],
-    ["pending", "Analyze request / 分析需求", "Start target validation and planning."],
-    ["locked", "Review plan / 審核計畫", "Unlocked after analysis succeeds."],
-    ["locked", "Approve + export / 批准並匯出", "Unlocked only after a valid plan exists."]
+    ["active", "Mission intake / 任務輸入", "Select a scenario, review the prompt, and run analysis."],
+    ["pending", "Target gate / 目標檢核", "Coordinates, AOI, and GSD are validated next."],
+    ["locked", "Fleet scoring / 衛星評分", "No satellite is evaluated before target validation."],
+    ["locked", "Plan approval / 計畫批准", "Approval remains disabled until a valid plan exists."],
+    ["locked", "Command packet / 指令封包", "Command export is locked before approval."],
+    ["pending", "Setup cards / 展示設定", "Fleet sandbox and map display can be opened anytime."]
   ],
   blocked: [
-    ["done", "Request analyzed / 需求已分析", "The system understood the mission intent."],
-    ["blocked", "Clarify target / 澄清目標", "Provide address, coordinates, or draw AOI."],
-    ["locked", "Access analysis / 可見性分析", "Waiting for a resolvable AOI."],
-    ["locked", "Satellite scoring / 衛星評分", "No spacecraft is tasked before geolocation."],
-    ["locked", "Approve plan / 批准計畫", "Approval stays disabled."],
-    ["locked", "Export commands / 匯出指令", "No command packet is generated yet."]
+    ["done", "Intake parsed / 輸入已解析", "The request is understood at the intent level."],
+    ["blocked", "Target gate / 目標檢核", "Provide address, coordinates, or map AOI."],
+    ["locked", "AOI and access / 區域與可見性", "Access windows wait for a resolvable target."],
+    ["locked", "Fleet readiness / 衛星可用性", "No spacecraft is scored before geolocation."],
+    ["locked", "Plan approval / 計畫批准", "Approval stays disabled."],
+    ["locked", "Command packet / 指令封包", "No command packet is generated yet."]
   ],
   planned: [
-    ["done", "Intent parsed / 意圖已解析", "Mission intent has been structured."],
-    ["done", "Target validated / 目標已驗證", "AOI and imaging need are available."],
-    ["active", "Review evidence / 檢查證據", "Check access, payload, battery, conflict, and FOV evidence."],
-    ["active", "Inspect plan / 檢查計畫", "Read the recommended satellite and ordered operation sequence."],
-    ["pending", "Approve plan / 批准計畫", "Operator approval is the next manual gate."],
-    ["locked", "Export commands / 匯出指令", "Locked until approval."]
+    ["done", "Target validated / 目標已驗證", "AOI and imaging requirements are clear."],
+    ["done", "Fleet scored / 衛星已評估", "Payload, battery, state, and conflicts are visible."],
+    ["done", "Decision generated / 決策已產生", "Candidate trade-offs are explainable."],
+    ["active", "Review plan / 審核計畫", "Inspect timeline and selected asset before approval."],
+    ["pending", "Approve plan / 批准計畫", "Operator approval is the manual gate."],
+    ["locked", "Command packet / 指令封包", "Locked until approval."]
   ],
   approved: [
-    ["done", "Intent parsed / 意圖已解析", "The request has been translated safely."],
-    ["done", "Evidence reviewed / 證據已審核", "Feasibility checks are visible."],
     ["done", "Plan approved / 計畫已批准", "The operator gate has been passed."],
-    ["active", "Inspect packet / 檢查封包", "Review ADCS, payload, and downlink commands."],
+    ["active", "Inspect commands / 檢查指令", "Review ADCS, payload, and data commands."],
     ["active", "Export packet / 匯出封包", "Use export for the demo handoff."],
-    ["done", "Audit ready / 可供稽核", "Command boundary and safety rationale remain visible."]
+    ["done", "Safety visible / 安全可審核", "Battery, conflicts, and command boundary remain visible."],
+    ["done", "No propulsion / 無推進", "This demo stays within non-propulsive tasking."],
+    ["done", "No interruption / 不打斷任務", "Protected missions are not overwritten."]
+  ],
+  exported: [
+    ["done", "Packet exported / 封包已匯出", "Demo export feedback has been shown."],
+    ["done", "Audit ready / 可供稽核", "The command packet remains visible."],
+    ["done", "Boundary preserved / 邊界保留", "Only approved command families are included."],
+    ["done", "Flight stack separate / 飛行系統分離", "Vendor binary telecommands remain outside this demo."],
+    ["done", "Operator trace / 操作員紀錄", "Approval remains the explicit gate."],
+    ["done", "Delivery staged / 交付已排程", "Data delivery is represented as queued downlink."]
   ]
 };
 
@@ -350,24 +380,59 @@ function renderPresentationFlow() {
   });
 }
 
+function isSetupStep(index) {
+  return presentationSteps[index]?.key === "setup";
+}
+
+function workflowProgressForState(state = currentWorkflowState) {
+  return workflowProgressByState[state] || workflowProgressByState.idle;
+}
+
+function isPresentationStepAvailable(index, state = currentWorkflowState) {
+  const progress = workflowProgressForState(state);
+  return isSetupStep(index) || index <= progress.availableThrough;
+}
+
+function presentationStepCount(setup) {
+  return presentationSteps.filter((_, index) => isSetupStep(index) === setup).length;
+}
+
+function presentationStepOrdinal(index) {
+  const setup = isSetupStep(index);
+  return presentationSteps.slice(0, index + 1).filter((_, stepIndex) => isSetupStep(stepIndex) === setup).length;
+}
+
+function presentationStepBadge(index) {
+  if (isSetupStep(index)) {
+    return `Setup ${presentationStepOrdinal(index)} of ${presentationStepCount(true)} / 展示設定 ${presentationStepOrdinal(index)}/${presentationStepCount(true)}`;
+  }
+
+  return `Mission Step ${presentationStepOrdinal(index)} of ${presentationStepCount(false)} / 任務第 ${presentationStepOrdinal(index)} 步，共 ${presentationStepCount(false)} 步`;
+}
+
+function nearestAvailableStep(fromIndex, direction) {
+  const activeSetup = isSetupStep(fromIndex);
+  for (let index = fromIndex + direction; index >= 0 && index < presentationPanels.length; index += direction) {
+    if (!isPresentationStepAvailable(index)) continue;
+    if (activeSetup !== isSetupStep(index)) continue;
+    return index;
+  }
+  return null;
+}
+
 function syncPresentationFlowClasses(state) {
-  const progressByState = {
-    idle: { completeThrough: -1, availableThrough: 0 },
-    blocked: { completeThrough: 0, availableThrough: 1, blockedIndex: 1 },
-    planned: { completeThrough: 7, availableThrough: 7 },
-    approved: { completeThrough: 8, availableThrough: 8 },
-    exported: { completeThrough: 8, availableThrough: 8 }
-  };
-  const progress = progressByState[state] || progressByState.idle;
+  const progress = workflowProgressForState(state);
 
   progressSteps.forEach((step) => {
     const index = Number(step.dataset.panelIndex);
     const setup = presentationSteps[index]?.key === "setup";
+    const locked = !setup && index > progress.availableThrough;
     step.classList.toggle("complete", index <= progress.completeThrough);
     step.classList.toggle("active", index === activePresentationStepIndex);
     step.classList.toggle("blocked", index === progress.blockedIndex);
-    step.classList.toggle("locked", !setup && index > progress.availableThrough);
+    step.classList.toggle("locked", locked);
     step.classList.toggle("presentation-current", index === activePresentationStepIndex);
+    step.disabled = locked;
   });
 }
 
@@ -387,18 +452,24 @@ function updatePresentationStep() {
   const title = activePanel.querySelector(".panel-heading h2")?.textContent?.trim() || step.title;
   const label = activePanel.dataset.phaseLabel || `${step.phase} ${step.title}`;
 
-  currentStepBadge.textContent = `Step ${activePresentationStepIndex + 1} of ${presentationPanels.length} / 第 ${activePresentationStepIndex + 1} 步，共 ${presentationPanels.length} 步`;
+  currentStepBadge.textContent = presentationStepBadge(activePresentationStepIndex);
   currentStepTitle.textContent = `${label} · ${title}`;
   currentStepHint.textContent = stepHintFromPanel(activePanel);
 
-  prevStepButton.disabled = activePresentationStepIndex === 0;
-  nextStepButton.disabled = activePresentationStepIndex === presentationPanels.length - 1;
+  prevStepButton.disabled = nearestAvailableStep(activePresentationStepIndex, -1) === null;
+  nextStepButton.disabled = nearestAvailableStep(activePresentationStepIndex, 1) === null;
 
   syncPresentationFlowClasses(currentWorkflowState);
 }
 
 function goToPresentationStep(index) {
-  activePresentationStepIndex = clampPresentationStep(index);
+  const targetIndex = clampPresentationStep(index);
+  if (!isPresentationStepAvailable(targetIndex)) {
+    syncPresentationFlowClasses(currentWorkflowState);
+    return;
+  }
+
+  activePresentationStepIndex = targetIndex;
   updatePresentationStep();
 }
 
@@ -417,7 +488,9 @@ function setPresentationMode(enabled) {
 }
 
 function scenarioMapPreset(scenarioKey) {
-  return scenarioKey === "construction" ? "construction" : "wildfire";
+  if (scenarioKey === "construction") return "construction";
+  if (scenarioKey === "custom") return "washington";
+  return "wildfire";
 }
 
 function clearMissionMapImage(status = "Auto scenario imagery / 自動情境底圖") {
@@ -437,7 +510,7 @@ function openStreetMapUrl(view) {
 }
 
 function applyOpenStreetMap(scenarioKey = activeScenario, options = {}) {
-  const viewKey = scenarioKey === "construction" ? "construction" : scenarioKey === "washington" ? "washington" : "wildfire";
+  const viewKey = scenarioKey === "construction" ? "construction" : scenarioKey === "washington" || scenarioKey === "custom" ? "washington" : "wildfire";
   const view = options.forceBlank ? null : osmMapViews[viewKey];
 
   missionMap.classList.remove("has-image");
@@ -577,6 +650,10 @@ const suitabilityModel = [
     detail: "Access window, revisit timing, off-nadir angle, slew demand, and swath overlap with the AOI."
   },
   {
+    title: "Attitude Agility / 姿態機動能力",
+    detail: "Whether the spacecraft can slew off-nadir far enough, settle quickly enough, and keep ADCS energy inside the battery reserve."
+  },
+  {
     title: "Payload Fit / 感測器適配",
     detail: "Optical, multispectral, thermal IR, or SAR suitability; achievable GSD, spectral mode, and scene size."
   },
@@ -610,10 +687,10 @@ const commandBoundaryModel = [
 ];
 
 const defaultCustomSatellites = [
-  { orbit: "SSO", battery: 78, position: "Ascending pass near target AOI", payload: "optical", status: "nominal" },
-  { orbit: "SSO", battery: 54, position: "Descending pass west of target", payload: "thermal_ir", status: "nominal" },
-  { orbit: "LEO", battery: 38, position: "Approaching target in 18 min", payload: "sar", status: "busy" },
-  { orbit: "GEO", battery: 82, position: "Pacific relay view", payload: "communications", status: "nominal" }
+  { orbit: "SSO", battery: 78, position: "Ascending pass east of Washington D.C.", payload: "optical", status: "nominal", requiredSlewDeg: 22, maxSlewDeg: 35, slewRateDegS: 0.18 },
+  { orbit: "SSO", battery: 54, position: "Descending pass west of target", payload: "thermal_ir", status: "nominal", requiredSlewDeg: 31, maxSlewDeg: 28, slewRateDegS: 0.11 },
+  { orbit: "LEO", battery: 38, position: "Approaching target in 18 min", payload: "sar", status: "busy", requiredSlewDeg: 16, maxSlewDeg: 45, slewRateDegS: 0.22 },
+  { orbit: "GEO", battery: 82, position: "Pacific relay view", payload: "communications", status: "nominal", requiredSlewDeg: 4, maxSlewDeg: 12, slewRateDegS: 0.04 }
 ];
 
 const orbitOptions = ["SSO", "LEO", "MEO", "GEO"];
@@ -650,7 +727,10 @@ function readCurrentCustomSatellites() {
     battery: Number(row.querySelector("[data-field='battery']")?.value || 60),
     position: row.querySelector("[data-field='position']")?.value || defaultCustomSatellites[index % defaultCustomSatellites.length].position,
     payload: row.querySelector("[data-field='payload']")?.value || defaultCustomSatellites[index % defaultCustomSatellites.length].payload,
-    status: row.querySelector("[data-field='status']")?.value || defaultCustomSatellites[index % defaultCustomSatellites.length].status
+    status: row.querySelector("[data-field='status']")?.value || defaultCustomSatellites[index % defaultCustomSatellites.length].status,
+    requiredSlewDeg: Number(row.querySelector("[data-field='requiredSlewDeg']")?.value || defaultCustomSatellites[index % defaultCustomSatellites.length].requiredSlewDeg),
+    maxSlewDeg: Number(row.querySelector("[data-field='maxSlewDeg']")?.value || defaultCustomSatellites[index % defaultCustomSatellites.length].maxSlewDeg),
+    slewRateDegS: Number(row.querySelector("[data-field='slewRateDegS']")?.value || defaultCustomSatellites[index % defaultCustomSatellites.length].slewRateDegS)
   }));
 }
 
@@ -682,6 +762,18 @@ function renderCustomEditor() {
               Status / 衛星狀態
               <select data-field="status">${optionMarkup(statusOptions, sat.status)}</select>
             </label>
+            <label>
+              Required slew deg / 需要轉向角
+              <input data-field="requiredSlewDeg" type="number" min="0" max="70" step="1" value="${sat.requiredSlewDeg}" />
+            </label>
+            <label>
+              Max slew deg / 最大轉向角
+              <input data-field="maxSlewDeg" type="number" min="0" max="80" step="1" value="${sat.maxSlewDeg}" />
+            </label>
+            <label>
+              Slew rate deg/s / 轉向速度
+              <input data-field="slewRateDegS" type="number" min="0.01" max="1" step="0.01" value="${sat.slewRateDegS}" />
+            </label>
             <label class="wide-field">
               Rough position / 粗略位置
               <input data-field="position" type="text" value="${sat.position}" />
@@ -697,19 +789,49 @@ function getCustomSatellites() {
   return readCurrentCustomSatellites().map((sat, index) => ({
     id: `CUSTOM-${String(index + 1).padStart(2, "0")}`,
     ...sat,
-    battery: Math.max(0, Math.min(100, Number(sat.battery) || 0))
+    battery: Math.max(0, Math.min(100, Number(sat.battery) || 0)),
+    requiredSlewDeg: Math.max(0, Math.min(70, Number(sat.requiredSlewDeg) || 0)),
+    maxSlewDeg: Math.max(0, Math.min(80, Number(sat.maxSlewDeg) || 0)),
+    slewRateDegS: Math.max(0.01, Math.min(1, Number(sat.slewRateDegS) || 0.01))
   }));
 }
 
-function isCustomEnabled() {
-  return customConstellationToggle.checked;
+function estimateSlew(sat) {
+  const requiredSlewDeg = Math.max(0, Number(sat.requiredSlewDeg) || 0);
+  const maxSlewDeg = Math.max(0, Number(sat.maxSlewDeg) || 0);
+  const slewRateDegS = Math.max(0.01, Number(sat.slewRateDegS) || 0.01);
+  const slewTimeS = Math.ceil(requiredSlewDeg / slewRateDegS);
+  const settleS = Math.max(60, Math.ceil(requiredSlewDeg * 5));
+  const adcsEnergyPct = Math.round((1.6 + requiredSlewDeg * 0.16 + slewTimeS / 220) * 10) / 10;
+  const payloadEnergyPct = sat.payload === "communications" ? 1.2 : sat.payload === "sar" ? 5.2 : 2.4;
+  const totalEnergyPct = Math.round((adcsEnergyPct + payloadEnergyPct) * 10) / 10;
+  const batteryAfterTask = Math.round((sat.battery - totalEnergyPct) * 10) / 10;
+
+  return {
+    requiredSlewDeg,
+    maxSlewDeg,
+    slewRateDegS,
+    slewTimeS,
+    settleS,
+    adcsEnergyPct,
+    payloadEnergyPct,
+    totalEnergyPct,
+    batteryAfterTask,
+    canSlew: requiredSlewDeg <= maxSlewDeg
+  };
 }
 
 function evaluateCustomSatellite(sat, scenarioKey) {
-  const desired = scenarioKey === "construction" ? ["optical", "multispectral"] : ["optical", "thermal_ir", "sar"];
+  const desired =
+    scenarioKey === "construction"
+      ? ["optical", "multispectral"]
+      : scenarioKey === "custom"
+        ? ["optical", "multispectral", "thermal_ir", "sar"]
+        : ["optical", "thermal_ir", "sar"];
   let score = 0;
   const reasons = [];
   let relayOnly = false;
+  const slew = estimateSlew(sat);
 
   if (desired.includes(sat.payload)) {
     score += sat.payload === "optical" ? 4 : 2;
@@ -732,6 +854,33 @@ function evaluateCustomSatellite(sat, scenarioKey) {
   } else {
     score -= 4;
     reasons.push(`Battery ${sat.battery}% is below the safe planning threshold.`);
+  }
+
+  if (slew.canSlew) {
+    score += slew.requiredSlewDeg <= 25 ? 3 : 1;
+    reasons.push(`Attitude agility can cover ${slew.requiredSlewDeg} deg off-nadir within a ${slew.maxSlewDeg} deg limit.`);
+  } else {
+    score -= 5;
+    reasons.push(`Required ${slew.requiredSlewDeg} deg slew exceeds the ${slew.maxSlewDeg} deg attitude limit.`);
+  }
+
+  if (slew.slewTimeS <= 180) {
+    score += 2;
+    reasons.push(`Slew completes in ${Math.round(slew.slewTimeS / 60)} min, fast enough for responsive capture.`);
+  } else if (slew.slewTimeS <= 420) {
+    score += 1;
+    reasons.push(`Slew needs ${Math.round(slew.slewTimeS / 60)} min, acceptable but not fastest.`);
+  } else {
+    score -= 2;
+    reasons.push(`Slew needs ${Math.round(slew.slewTimeS / 60)} min, too slow for urgent response.`);
+  }
+
+  if (slew.batteryAfterTask >= 30) {
+    score += 2;
+    reasons.push(`Estimated task energy ${slew.totalEnergyPct}% leaves ${slew.batteryAfterTask}% battery after capture.`);
+  } else {
+    score -= 4;
+    reasons.push(`Estimated task energy ${slew.totalEnergyPct}% would leave only ${slew.batteryAfterTask}% battery.`);
   }
 
   if (sat.status === "nominal") {
@@ -767,11 +916,11 @@ function evaluateCustomSatellite(sat, scenarioKey) {
     reasons.push("Rough position suggests useful access geometry.");
   }
 
-  const executable = !relayOnly && sat.status !== "safe" && sat.battery >= 30 && desired.includes(sat.payload);
+  const executable = !relayOnly && sat.status !== "safe" && desired.includes(sat.payload) && slew.canSlew && slew.batteryAfterTask >= 25;
   const tone = executable && score >= 7 ? "good" : executable ? "warn" : "bad";
   const title = executable && score >= 7 ? "Recommended" : executable ? "Feasible with trade-off" : relayOnly ? "Relay support only" : "Rejected by constraint";
 
-  return { sat, score, reasons, executable, tone, title, relayOnly };
+  return { sat, score, reasons, executable, tone, title, relayOnly, slew };
 }
 
 function buildCustomConstellationPlan(scenarioKey) {
@@ -779,14 +928,22 @@ function buildCustomConstellationPlan(scenarioKey) {
     .map((sat) => evaluateCustomSatellite(sat, scenarioKey))
     .sort((a, b) => b.score - a.score);
   const best = evaluations.find((item) => item.executable);
-  const missionLabel = scenarioKey === "construction" ? "site monitoring" : "emergency imaging";
+  const missionLabel =
+    scenarioKey === "construction"
+      ? "site monitoring"
+      : scenarioKey === "custom"
+        ? "custom Washington D.C. off-nadir imaging"
+        : "emergency imaging";
 
-  const cards = evaluations.map(({ sat, tone, reasons }) => ({
+  const cards = evaluations.map(({ sat, tone, reasons, slew }) => ({
     name: sat.id,
     role: `${payloadLabels[sat.payload]} / ${sat.orbit}`,
     tone,
     metrics: [
       `Battery ${sat.battery}% / 電量 ${sat.battery}%`,
+      `Slew ${slew.requiredSlewDeg} deg of ${slew.maxSlewDeg} deg limit / 轉向 ${slew.requiredSlewDeg} 度，上限 ${slew.maxSlewDeg} 度`,
+      `Slew time ${Math.round(slew.slewTimeS / 60)} min + settle ${Math.round(slew.settleS / 60)} min / 轉向加穩定時間`,
+      `Task energy ${slew.totalEnergyPct}% -> battery ${slew.batteryAfterTask}% / 任務後電量`,
       `Position: ${sat.position} / 粗略位置`,
       `Status: ${statusLabels[sat.status]} / 狀態`,
       `Planner note: ${reasons[0]}`
@@ -794,7 +951,12 @@ function buildCustomConstellationPlan(scenarioKey) {
     footer: reasons.slice(1, 3).join(" ") || "Custom asset is available for rough testing."
   }));
 
-  const decisions = evaluations.map(({ sat, title, reasons, tone }) => [sat.id, title, reasons.join(" "), tone]);
+  const decisions = evaluations.map(({ sat, title, reasons, tone, slew }) => [
+    sat.id,
+    title,
+    `${reasons.join(" ")} Slew trade-off: ${slew.requiredSlewDeg} deg required, ${Math.round(slew.slewTimeS / 60)} min slew, ${slew.totalEnergyPct}% estimated task energy.`,
+    tone
+  ]);
 
   if (!best) {
     return {
@@ -813,7 +975,7 @@ function buildCustomConstellationPlan(scenarioKey) {
           fromState: "Planning",
           toState: "Clarification",
           commands: [
-            { subsystem: "Planner / 規劃器", text: "Adjust payload type, battery, status, or position and analyze again." }
+            { subsystem: "Planner / 規劃器", text: "Adjust payload type, battery, status, slew limit, slew rate, or rough position and analyze again." }
           ]
         }
       ],
@@ -821,8 +983,9 @@ function buildCustomConstellationPlan(scenarioKey) {
     };
   }
 
-  const captureMode = scenarioKey === "construction" ? "OPTICAL_REPEATABILITY" : "RESPONSIVE_IMAGING";
-  const targetRef = scenarioKey === "construction" ? "CUSTOM-SITE-AOI" : "CUSTOM-URGENT-AOI";
+  const captureMode = scenarioKey === "construction" ? "OPTICAL_REPEATABILITY" : scenarioKey === "custom" ? "CUSTOM_OFF_NADIR_IMAGING" : "RESPONSIVE_IMAGING";
+  const targetRef = scenarioKey === "construction" ? "CUSTOM-SITE-AOI" : scenarioKey === "custom" ? "WASHINGTON-DC-CUSTOM-AOI" : "CUSTOM-URGENT-AOI";
+  const bestSlew = best.slew;
 
   return {
     executable: true,
@@ -831,24 +994,35 @@ function buildCustomConstellationPlan(scenarioKey) {
     decisions,
     recommendedAsset: {
       title: best.sat.id,
-      note: `${best.sat.id} is selected for ${missionLabel} based on custom battery, payload, status, orbit, and rough position.`
+      note: `${best.sat.id} is selected for ${missionLabel} because it can slew ${bestSlew.requiredSlewDeg} deg within limits, settle in time, and remain at ${bestSlew.batteryAfterTask}% battery after tasking.`
     },
     timeline: [
       {
         time: "T+00 min",
         detail: `Prepare ${best.sat.id} for ${missionLabel}.`,
         fromState: statusLabels[best.sat.status].split(" /")[0],
-        toState: "Target Acquisition",
+        toState: "Slew Planning",
         commands: [
-          { subsystem: "ADCS / 姿態控制", text: `SET_TARGET_POINTING using rough position: ${best.sat.position}.` },
+          { subsystem: "ADCS / 姿態控制", text: `CALCULATE_SLEW ${bestSlew.requiredSlewDeg} deg toward ${targetRef}; max allowed ${bestSlew.maxSlewDeg} deg.` },
           { subsystem: "Payload / 感測器", text: `SELECT_PAYLOAD_MODE for ${payloadLabels[best.sat.payload]}.` },
-          { subsystem: "Comms & Data / 通訊與資料", text: "RESERVE_STORAGE for custom test product." }
+          { subsystem: "Comms & Data / 通訊與資料", text: "RESERVE_STORAGE for custom test product and attach maneuver metadata." }
         ]
       },
       {
-        time: "T+05 min",
+        time: `T+${Math.max(1, Math.round(bestSlew.slewTimeS / 60))} min`,
+        detail: "Rotate off-nadir and wait for attitude settle.",
+        fromState: "Slew Planning",
+        toState: "Target Pointing",
+        commands: [
+          { subsystem: "ADCS / 姿態控制", text: `EXECUTE_SLEW at ${best.sat.slewRateDegS} deg/s; budget ${bestSlew.adcsEnergyPct}% ADCS energy and ${bestSlew.settleS}s settle.` },
+          { subsystem: "Payload / 感測器", text: "Keep payload standby until target-pointing stability is confirmed." },
+          { subsystem: "Comms & Data / 通訊與資料", text: `Abort before capture if battery would fall below 25%; projected after task is ${bestSlew.batteryAfterTask}%.` }
+        ]
+      },
+      {
+        time: `T+${Math.max(3, Math.round((bestSlew.slewTimeS + bestSlew.settleS) / 60))} min`,
         detail: "Execute the custom observation window.",
-        fromState: "Target Acquisition",
+        fromState: "Target Pointing",
         toState: "Imaging",
         commands: [
           { subsystem: "ADCS / 姿態控制", text: "HOLD_POINTING during the requested capture window." },
@@ -857,7 +1031,7 @@ function buildCustomConstellationPlan(scenarioKey) {
         ]
       },
       {
-        time: "T+08 min",
+        time: `T+${Math.max(6, Math.round((bestSlew.slewTimeS + bestSlew.settleS) / 60) + 3)} min`,
         detail: "Recover and stage data delivery.",
         fromState: "Imaging",
         toState: "LVLH Recovery",
@@ -871,7 +1045,7 @@ function buildCustomConstellationPlan(scenarioKey) {
     command: {
       schema_version: "mission-command-packet.v0.2",
       mission_id: `CUSTOM-${scenarioKey.toUpperCase()}-001`,
-      mission_type: scenarioKey === "construction" ? "custom_recurring_site_monitoring" : "custom_responsive_imaging",
+      mission_type: scenarioKey === "construction" ? "custom_recurring_site_monitoring" : scenarioKey === "custom" ? "custom_off_nadir_imaging_drill" : "custom_responsive_imaging",
       operator_gate: "required",
       selected_assets: [best.sat.id],
       custom_constellation: getCustomSatellites(),
@@ -880,7 +1054,16 @@ function buildCustomConstellationPlan(scenarioKey) {
           dispatch: "time_tagged_sequence",
           subsystem: "ADCS",
           command: "SET_TARGET_POINTING",
-          parameters: { target_ref: targetRef, rough_position: best.sat.position, orbit_type: best.sat.orbit }
+          parameters: {
+            target_ref: targetRef,
+            rough_position: best.sat.position,
+            orbit_type: best.sat.orbit,
+            required_slew_deg: bestSlew.requiredSlewDeg,
+            max_slew_deg: bestSlew.maxSlewDeg,
+            slew_rate_deg_s: best.sat.slewRateDegS,
+            estimated_slew_time_s: bestSlew.slewTimeS,
+            settle_s: bestSlew.settleS
+          }
         },
         {
           dispatch: "time_tagged_sequence",
@@ -897,7 +1080,11 @@ function buildCustomConstellationPlan(scenarioKey) {
       ],
       safety: {
         input_battery_pct: best.sat.battery,
-        estimated_battery_after_task_pct: Math.max(0, best.sat.battery - 6),
+        estimated_adcs_energy_pct: bestSlew.adcsEnergyPct,
+        estimated_payload_energy_pct: bestSlew.payloadEnergyPct,
+        estimated_task_energy_pct: bestSlew.totalEnergyPct,
+        estimated_battery_after_task_pct: bestSlew.batteryAfterTask,
+        slew_within_capability: bestSlew.canSlew,
         propulsion_required: false,
         crosslink_required: false,
         generated_from_custom_constellation: true
@@ -924,6 +1111,7 @@ const scenarios = {
         tone: "warn",
         metrics: [
           "Access 14:24 UTC / 最早可見 14:24 UTC",
+          "Needs 29 deg slew, 4 min settle / 需轉向 29 度並穩定 4 分鐘",
           "Projected GSD 3.8 m / 解析度略低於建議",
           "Battery 31% -> 22% / 電量餘裕偏窄",
           "Storage 18 GB free / 儲存仍足夠"
@@ -936,6 +1124,7 @@ const scenarios = {
         tone: "good",
         metrics: [
           "Access 14:32 UTC / 最早可見 14:32 UTC",
+          "Slew 18 deg in 2 min, safe ADCS margin / 2 分鐘完成 18 度轉向",
           "Projected GSD 2.7 m / 符合需求",
           "Battery 73% -> 67% / 任務後仍安全",
           "No protected schedule conflict / 無既有任務衝突"
@@ -948,6 +1137,7 @@ const scenarios = {
         tone: "bad",
         metrics: [
           "Access 14:29 UTC / 幾何條件良好",
+          "Can slew 12 deg, but protected pointing window active / 可轉向 12 度但既有指向任務受保護",
           "Payload useful for hotspots / 載荷適合熱點判讀",
           "Existing high-priority task / 既有高優先任務保護中",
           "Not selected for requested optical capture / 不符合此筆光學任務主需求"
@@ -956,9 +1146,9 @@ const scenarios = {
       }
     ],
     decisions: [
-      ["SAT-A", "Feasible with trade-off", "Fastest access, but the projected post-task battery margin is narrow and image quality is slightly below target.", "warn"],
-      ["SAT-B", "Recommended", "Best combined fit across GSD, battery safety, maneuver demand, and lack of schedule conflict.", "good"],
-      ["SAT-C", "Rejected by constraint", "Thermal imagery is operationally relevant, but this pass is locked by a protected mission and does not satisfy the requested optical capture alone.", "bad"]
+      ["SAT-A", "Feasible with trade-off", "Fastest access and can slew to the AOI, but the 29 deg maneuver plus imaging would leave only 22% battery and image quality is slightly below target.", "warn"],
+      ["SAT-B", "Recommended", "Best combined fit across GSD, battery safety, 18 deg slew demand, 2 min slew time, and lack of schedule conflict.", "good"],
+      ["SAT-C", "Rejected by constraint", "Thermal imagery is operationally relevant and the slew is feasible, but this pass is locked by a protected mission and does not satisfy the requested optical capture alone.", "bad"]
     ],
     timeline: [
       {
@@ -1077,6 +1267,10 @@ const scenarios = {
         }
       ],
       safety: {
+        required_slew_deg: 18,
+        max_slew_deg: 40,
+        estimated_slew_time_s: 120,
+        estimated_adcs_energy_pct: 3.4,
         battery_after_task_pct: 67,
         storage_after_task_gb: 14.8,
         original_mission_interrupted: false,
@@ -1084,6 +1278,18 @@ const scenarios = {
         crosslink_required: false
       }
     }
+  },
+  custom: {
+    prompt: "Use my custom constellation to image Washington D.C. as soon as possible. Include satellites that can slew off-nadir even if they do not pass directly overhead.",
+    constellation: "Operator-defined custom constellation / 操作員自訂星系",
+    intent: [
+      ["Mission type / 任務類型", "Custom off-nadir imaging drill / 自訂斜視拍攝驗證"],
+      ["Geolocation / 地理解析", "Washington D.C. target resolved to 38.9072 deg N, 77.0369 deg W / 已解析為華盛頓目標座標"],
+      ["Planning question / 規劃問題", "Which custom satellite can rotate to the target fastest without unsafe battery draw? / 哪顆自訂衛星能最快安全轉向拍攝？"],
+      ["Attitude policy / 姿態策略", "Allow target pointing if required slew stays within each spacecraft limit / 只要所需轉向角不超過各衛星限制即可納入"],
+      ["Safety policy / 安全策略", "Reject assets whose maneuver leaves insufficient post-task battery / 若轉向與拍攝後電量不足，則排除"]
+    ],
+    command: null
   },
   construction: {
     prompt: "Monitor the construction progress of this site every day with comparable lighting and viewing conditions.",
@@ -1109,6 +1315,7 @@ const scenarios = {
         metrics: [
           "Day 1 slot 10:42 local / 最佳基準影像時段",
           "Off-nadir 7 deg / 幾何接近理想",
+          "Slew energy 2.8% / 姿態轉向用電低",
           "Battery 78% -> 72% / 電量安全",
           "Downlink next pass available / 下一圈可下行"
         ],
@@ -1121,6 +1328,7 @@ const scenarios = {
         metrics: [
           "Day 2 slot 10:48 local / 光照一致性佳",
           "Off-nadir 6 deg / 幾何變化低",
+          "Fast 90s slew / 90 秒內完成轉向",
           "Battery 69% -> 63% / 電量安全",
           "No protected task conflict / 無排程衝突"
         ],
@@ -1133,6 +1341,7 @@ const scenarios = {
         metrics: [
           "Day 3 slot 10:39 local / 時間穩定",
           "Off-nadir 8 deg / 可接受但略偏",
+          "Higher slew load for continuity geometry / 為維持一致視角需較高轉向負載",
           "Storage margin tighter / 儲存空間較緊",
           "Plan remains valid with trade-off / 仍可納入排程"
         ],
@@ -1152,9 +1361,9 @@ const scenarios = {
       }
     ],
     decisions: [
-      ["Day 1", "Recommended", "SAT-01 establishes the baseline image under a stable local solar time window.", "good"],
-      ["Day 2", "Recommended", "SAT-03 preserves lighting and viewing geometry within the selected monitoring tolerance.", "good"],
-      ["Day 3", "Feasible with trade-off", "SAT-06 remains acceptable, but storage and pointing margin should be revalidated before release.", "warn"]
+      ["Day 1", "Recommended", "SAT-01 establishes the baseline image under a stable local solar time window with low slew energy.", "good"],
+      ["Day 2", "Recommended", "SAT-03 preserves lighting and viewing geometry within tolerance and can complete the small slew quickly.", "good"],
+      ["Day 3", "Feasible with trade-off", "SAT-06 remains acceptable, but storage, pointing margin, and maneuver power should be revalidated before release.", "warn"]
     ],
     timeline: [
       {
@@ -1244,6 +1453,8 @@ const scenarios = {
         }
       ],
       safety: {
+        preferred_off_nadir_deg: { min: 5, max: 8 },
+        max_daily_slew_energy_pct: 3.5,
         preserve_existing_missions: true,
         revalidate_battery_before_execution: true,
         crosslink_required: false,
@@ -1265,15 +1476,19 @@ function setScenario(nextScenario) {
     button.classList.toggle("active", button.dataset.scenario === nextScenario);
   });
   missionPrompt.value = scenarios[nextScenario].prompt;
+  customConstellationToggle.checked = nextScenario === "custom";
   renderNarrativePanels();
   resetPanels();
 
   if (nextScenario === "wildfire") {
     constructionResolved = false;
     constructionTools.classList.add("hidden");
-  } else {
+  } else if (nextScenario === "construction") {
     constructionResolved = false;
     constructionTools.classList.remove("hidden");
+  } else {
+    constructionResolved = true;
+    constructionTools.classList.add("hidden");
   }
 
   goToPresentationStep(0);
@@ -1469,8 +1684,6 @@ function renderNarrativePanels() {
 
 function renderWildfire() {
   const scenario = scenarios.wildfire;
-  const customPlan = isCustomEnabled() ? buildCustomConstellationPlan("wildfire") : null;
-  const planSource = customPlan || scenario;
 
   missionMap.classList.remove("idle");
   applyMissionMapImage("wildfire");
@@ -1478,40 +1691,32 @@ function renderWildfire() {
   constellationBadge.className = "pill";
   mapTarget.className = "map-target wildfire-target";
   mapTarget.innerHTML = "<span>AOI</span>";
-  renderMapAssets(mapAssetNamesFromPlan(planSource, ["SAT-A", "SAT-B", "SAT-C"]), selectedAssetNamesFromPlan(planSource), true);
+  renderMapAssets(mapAssetNamesFromPlan(scenario, ["SAT-A", "SAT-B", "SAT-C"]), selectedAssetNamesFromPlan(scenario), true);
   clarificationBox.className = "clarification-box ready";
   clarificationBox.innerHTML = "<strong>Ready / 已就緒。</strong><p>The target phrase can be resolved into a wildfire search AOI, so the system can proceed into imaging requirements and tasking analysis. / 系統能將該地名轉成火災搜尋 AOI，因此可進入成像需求與任務分析。</p>";
-  mapCaption.textContent = customPlan
-    ? "Custom constellation is being evaluated against the wildfire AOI. / 正以自訂星系評估火災 AOI。"
-    : "Rocky Mountains wildfire search region resolved from natural language. / 已從自然語言解析出落基山火災搜尋區域。";
-  mapBadge.textContent = customPlan ? "Custom constellation / 自訂星系" : "AOI resolved / 區域已解析";
-  constellationBadge.textContent = customPlan ? customPlan.constellationLabel : scenario.constellation;
+  mapCaption.textContent = "Rocky Mountains wildfire search region resolved from natural language. / 已從自然語言解析出落基山火災搜尋區域。";
+  mapBadge.textContent = "AOI resolved / 區域已解析";
+  constellationBadge.textContent = scenario.constellation;
 
   renderDefinitionList(scenario.intent);
-  renderCards(planSource.cards || planSource.satellites);
+  renderCards(scenario.satellites);
   renderSuitabilityModel();
-  renderDecisionRows(planSource.decisions);
-  renderRecommendedAsset(planSource.recommendedAsset);
-  renderTimeline(planSource.timeline);
+  renderDecisionRows(scenario.decisions);
+  renderRecommendedAsset(scenario.recommendedAsset);
+  renderTimeline(scenario.timeline);
   renderCommandBoundary();
-  activeCommandPacket = customPlan ? customPlan.command : scenario.command;
+  activeCommandPacket = scenario.command;
   updateWorkflowProgress("planned");
-  planStatus.textContent = customPlan
-    ? customPlan.executable
-      ? "Custom constellation plan ready / 自訂星系計畫可供審核"
-      : "Custom constellation has no executable imaging asset / 自訂星系無可執行拍攝資產"
-    : "Validated recommendation ready / 已產出可審核建議";
+  planStatus.textContent = "Validated recommendation ready / 已產出可審核建議";
 }
 
 function renderConstruction(resolved) {
   const scenario = scenarios.construction;
-  const customPlan = resolved && isCustomEnabled() ? buildCustomConstellationPlan("construction") : null;
-  const planSource = customPlan || scenario;
 
   missionMap.classList.remove("idle");
   applyMissionMapImage("construction", { forceBlankAuto: !resolved });
   constellationBadge.className = "pill";
-  constellationBadge.textContent = customPlan ? customPlan.constellationLabel : scenario.constellation;
+  constellationBadge.textContent = scenario.constellation;
   mapTarget.classList.remove("hidden");
   mapBadge.className = resolved ? "pill" : "pill muted";
   renderSuitabilityModel();
@@ -1521,14 +1726,12 @@ function renderConstruction(resolved) {
     mapTarget.className = "map-target construction-target";
     mapTarget.innerHTML = "<span>AOI</span>";
     renderMapAssets(
-      mapAssetNamesFromPlan(planSource, ["SAT-01", "SAT-03", "SAT-06", "SAT-08"]),
-      selectedAssetNamesFromPlan(planSource),
+      mapAssetNamesFromPlan(scenario, ["SAT-01", "SAT-03", "SAT-06", "SAT-08"]),
+      selectedAssetNamesFromPlan(scenario),
       true
     );
-    mapCaption.textContent = customPlan
-      ? "Custom constellation is being evaluated against the resolved construction AOI. / 正以自訂星系評估已解析工地 AOI。"
-      : "Construction site AOI resolved and ready for recurring monitoring. / 工地 AOI 已解析，可進入週期性監測。";
-    mapBadge.textContent = customPlan ? "Custom constellation / 自訂星系" : "AOI resolved / 區域已解析";
+    mapCaption.textContent = "Construction site AOI resolved and ready for recurring monitoring. / 工地 AOI 已解析，可進入週期性監測。";
+    mapBadge.textContent = "AOI resolved / 區域已解析";
   } else {
     mapTarget.className = "map-target construction-target";
     mapTarget.innerHTML = "<span>?</span>";
@@ -1540,15 +1743,15 @@ function renderConstruction(resolved) {
   }
 
   renderDefinitionList(resolved ? scenario.resolvedIntent : scenario.unresolvedIntent);
-  renderCards(resolved ? planSource.cards || planSource.satellites : []);
+  renderCards(resolved ? scenario.satellites : []);
   renderDecisionRows(
     resolved
-      ? planSource.decisions
+      ? scenario.decisions
       : [["System", "Paused", "Mission planning has not started because the target is not yet geolocated.", "warn"]]
   );
   renderTimeline(
     resolved
-      ? planSource.timeline
+      ? scenario.timeline
       : [
           {
             time: "Awaiting target",
@@ -1563,8 +1766,8 @@ function renderConstruction(resolved) {
   );
 
   if (resolved) {
-    renderRecommendedAsset(planSource.recommendedAsset);
-    activeCommandPacket = customPlan ? customPlan.command : scenario.command;
+    renderRecommendedAsset(scenario.recommendedAsset);
+    activeCommandPacket = scenario.command;
     updateWorkflowProgress("planned");
   } else {
     recommendedAsset.className = "recommended-asset empty-plan";
@@ -1574,12 +1777,41 @@ function renderConstruction(resolved) {
   }
 
   planStatus.textContent = resolved
-    ? customPlan
-      ? customPlan.executable
-        ? "Custom recurring plan ready / 自訂週期任務可供批准"
-        : "Custom constellation has no executable imaging asset / 自訂星系無可執行拍攝資產"
-      : "Recurring plan ready for approval / 週期任務可供批准"
+    ? "Recurring plan ready for approval / 週期任務可供批准"
     : "Clarification required / 需要補充資訊";
+}
+
+function renderCustomScenario() {
+  const scenario = scenarios.custom;
+  const customPlan = buildCustomConstellationPlan("custom");
+
+  missionMap.classList.remove("idle");
+  applyMissionMapImage("custom");
+  mapBadge.className = "pill";
+  constellationBadge.className = "pill";
+  constellationBadge.textContent = customPlan.constellationLabel;
+  mapTarget.className = "map-target construction-target";
+  mapTarget.innerHTML = "<span>DC</span>";
+  renderMapAssets(mapAssetNamesFromPlan(customPlan, []), selectedAssetNamesFromPlan(customPlan), true);
+
+  clarificationBox.className = "clarification-box ready";
+  clarificationBox.innerHTML =
+    "<strong>Custom drill ready / 自訂驗證就緒。</strong><p>This scenario uses only the sandbox constellation. Preset wildfire and construction fleets remain unchanged. / 此情境只使用沙盒星系；預設森林大火與工地監測星系不會被改動。</p>";
+  mapCaption.textContent = "Washington D.C. target resolved; planner is testing whether custom satellites can slew off-nadir to image it. / 華盛頓目標已解析，規劃器正在檢查自訂衛星能否斜視轉向拍攝。";
+  mapBadge.textContent = "Custom target resolved / 自訂目標已解析";
+
+  renderDefinitionList(scenario.intent);
+  renderCards(customPlan.cards);
+  renderSuitabilityModel();
+  renderDecisionRows(customPlan.decisions);
+  renderRecommendedAsset(customPlan.recommendedAsset);
+  renderTimeline(customPlan.timeline);
+  renderCommandBoundary();
+  activeCommandPacket = customPlan.command;
+  updateWorkflowProgress("planned");
+  planStatus.textContent = customPlan.executable
+    ? "Custom off-nadir plan ready / 自訂斜視計畫可供審核"
+    : "Custom constellation has no safe executable imaging asset / 自訂星系無安全可執行拍攝資產";
 }
 
 async function requestLlmIntent() {
@@ -1644,6 +1876,15 @@ async function analyzeMission() {
     renderWildfire();
     approveButton.disabled = !activeCommandPacket;
     goToPresentationStep(1);
+    appendLlmIntentSummary(await llmPromise);
+    updatePresentationStep();
+    return;
+  }
+
+  if (activeScenario === "custom") {
+    renderCustomScenario();
+    approveButton.disabled = !activeCommandPacket;
+    goToPresentationStep(2);
     appendLlmIntentSummary(await llmPromise);
     updatePresentationStep();
     return;
@@ -1746,11 +1987,13 @@ dashboardModeToggle.addEventListener("click", () => {
 });
 
 prevStepButton.addEventListener("click", () => {
-  goToPresentationStep(activePresentationStepIndex - 1);
+  const previousStep = nearestAvailableStep(activePresentationStepIndex, -1);
+  if (previousStep !== null) goToPresentationStep(previousStep);
 });
 
 nextStepButton.addEventListener("click", () => {
-  goToPresentationStep(activePresentationStepIndex + 1);
+  const nextStep = nearestAvailableStep(activePresentationStepIndex, 1);
+  if (nextStep !== null) goToPresentationStep(nextStep);
 });
 
 analyzeButton.addEventListener("click", analyzeMission);
@@ -1769,15 +2012,15 @@ generateConstellationButton.addEventListener("click", () => {
 });
 
 applyCustomConstellationButton.addEventListener("click", () => {
-  customConstellationToggle.checked = true;
-  if (!missionMap.classList.contains("idle")) {
-    analyzeMission();
-  }
+  setScenario("custom");
+  analyzeMission();
 });
 
 customConstellationToggle.addEventListener("change", () => {
-  if (!missionMap.classList.contains("idle")) {
-    analyzeMission();
+  if (customConstellationToggle.checked) {
+    setScenario("custom");
+  } else if (activeScenario === "custom") {
+    setScenario("wildfire");
   }
 });
 
