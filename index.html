@@ -195,6 +195,12 @@
             <div class="mission-map idle">
               <iframe id="osmMapFrame" class="osm-map-frame hidden" title="OpenStreetMap mission area"></iframe>
               <div class="map-grid"></div>
+              <div class="map-navigation-controls" aria-label="Map navigation controls">
+                <button id="mapZoomInButton" type="button" aria-label="Zoom in">+</button>
+                <button id="mapZoomOutButton" type="button" aria-label="Zoom out">-</button>
+                <button id="mapResetViewButton" type="button">Reset / 重置</button>
+              </div>
+              <div id="mapScaleBadge" class="map-scale-badge">Zoom -- / 比例 --</div>
               <div id="mapTarget" class="map-target wildfire-target hidden">
                 <span>AOI</span>
               </div>

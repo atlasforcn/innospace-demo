@@ -25,6 +25,12 @@ const mapViews = {
     zoom: 12,
     maptype: "hybrid",
     marker: "color:blue|label:D|38.9072,-77.0369"
+  },
+  custom: {
+    center: [23.6978, 120.9605],
+    zoom: 7,
+    maptype: "terrain",
+    marker: "color:red|label:T|23.6978,120.9605"
   }
 };
 
@@ -34,7 +40,8 @@ function googleMapsKey() {
 
 function normalizeScenario(value) {
   if (value === "construction") return "construction";
-  if (value === "custom" || value === "washington") return "washington";
+  if (value === "custom") return "custom";
+  if (value === "washington") return "washington";
   return "wildfire";
 }
 
@@ -55,6 +62,8 @@ function markerLabel(value) {
 function viewFromRequest(searchParams) {
   const lat = numericParam(searchParams, "lat");
   const lng = numericParam(searchParams, "lng");
+  const scenario = normalizeScenario(searchParams.get("scenario"));
+  const baseView = mapViews[scenario];
 
   if (lat !== null && lng !== null && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
     const zoom = clamp(Number(searchParams.get("zoom")) || 12, 1, 20);
@@ -63,6 +72,7 @@ function viewFromRequest(searchParams) {
       : "terrain";
 
     return {
+      ...baseView,
       center: [lat, lng],
       zoom,
       maptype,
@@ -70,7 +80,7 @@ function viewFromRequest(searchParams) {
     };
   }
 
-  return mapViews[normalizeScenario(searchParams.get("scenario"))];
+  return baseView;
 }
 
 export function OPTIONS() {

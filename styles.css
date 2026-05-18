@@ -807,17 +807,25 @@ select {
   border: 1px solid var(--line);
   --map-image: none;
   --map-position: center;
+  --map-size: cover;
   background:
     linear-gradient(135deg, rgba(15, 43, 64, 0.94), rgba(9, 24, 37, 0.96)),
     repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.02) 0 1px, transparent 1px 80px),
     repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.02) 0 1px, transparent 1px 80px);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.mission-map.dragging {
+  cursor: grabbing;
 }
 
 .mission-map.has-image {
   background-image:
     linear-gradient(180deg, rgba(7, 16, 25, 0.06), rgba(7, 16, 25, 0.54)),
     var(--map-image);
-  background-size: cover, cover;
+  background-size: cover, var(--map-size);
   background-position: center, var(--map-position);
 }
 
@@ -854,11 +862,10 @@ select {
 
 .osm-tile-layer {
   position: absolute;
-  top: 50%;
-  left: 50%;
+  top: 0;
+  left: 0;
   z-index: 0;
   display: grid;
-  transform: translate(-50%, -50%);
   filter: saturate(0.82) contrast(0.98);
 }
 
@@ -904,6 +911,51 @@ select {
   border: 2px solid rgba(255, 238, 210, 0.6);
   font-weight: 800;
   transform: translate(-50%, -50%);
+}
+
+.map-navigation-controls {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 7;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: rgba(6, 16, 26, 0.8);
+  backdrop-filter: blur(10px);
+}
+
+.map-navigation-controls button {
+  min-width: 34px;
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.map-navigation-controls button:last-child {
+  min-width: 92px;
+  font-size: 12px;
+}
+
+.map-scale-badge {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  z-index: 7;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  color: var(--text);
+  background: rgba(6, 16, 26, 0.8);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .wildfire-target {

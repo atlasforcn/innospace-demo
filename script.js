@@ -18,6 +18,10 @@ const clearMapImageButton = document.getElementById("clearMapImageButton");
 const mapImageStatus = document.getElementById("mapImageStatus");
 const osmMapFrame = document.getElementById("osmMapFrame");
 const mapModeButtons = document.querySelectorAll("[data-map-source]");
+const mapZoomInButton = document.getElementById("mapZoomInButton");
+const mapZoomOutButton = document.getElementById("mapZoomOutButton");
+const mapResetViewButton = document.getElementById("mapResetViewButton");
+const mapScaleBadge = document.getElementById("mapScaleBadge");
 let mapTracks = Array.from(document.querySelectorAll(".track"));
 let mapSatellites = Array.from(document.querySelectorAll(".satellite"));
 const constellationBadge = document.getElementById("constellationBadge");
@@ -76,6 +80,9 @@ let presentationModeEnabled = true;
 let currentWorkflowState = "idle";
 let progressSteps = [];
 let activeCustomTarget = null;
+let mapDragState = null;
+let lastMapDragMoved = false;
+const mapViewOverrides = {};
 
 const presentationSteps = [
   {
@@ -207,7 +214,7 @@ const mapLiveViews = {
   },
   construction: {
     center: [38.8977, -77.0365],
-    zoom: 14,
+    zoom: 16,
     googleMapType: "satellite",
     googleStatus: "Google Maps: resolved construction AOI / Google 地圖：已解析工地 AOI",
     freeStatus: "Free map: resolved construction AOI / 免費地圖：已解析工地 AOI",
@@ -569,7 +576,7 @@ function targetRefFromTarget(target) {
   return "CUSTOM-AOI";
 }
 
-function mapViewForKey(viewKey) {
+function baseMapViewForKey(viewKey) {
   if (viewKey === "custom" && hasTargetCoordinates()) {
     const label = cleanDisplayText(activeCustomTarget.label || activeCustomTarget.query);
     const isHazard = activeCustomTarget.need?.type === "hazard_response";
@@ -588,6 +595,52 @@ function mapViewForKey(viewKey) {
   return mapLiveViews[viewKey] || mapLiveViews.wildfire;
 }
 
+function clampMapZoom(zoom) {
+  return Math.max(3, Math.min(18, Math.round(Number(zoom) || 7)));
+}
+
+function mapViewForKey(viewKey) {
+  const base = baseMapViewForKey(viewKey);
+  const override = mapViewOverrides[viewKey];
+
+  if (!override) return { ...base, zoom: clampMapZoom(base.zoom) };
+
+  return {
+    ...base,
+    center: override.center || base.center,
+    zoom: clampMapZoom(override.zoom ?? base.zoom)
+  };
+}
+
+function setMapViewOverride(viewKey, patch) {
+  const current = mapViewForKey(viewKey);
+  mapViewOverrides[viewKey] = {
+    center: patch.center || current.center,
+    zoom: clampMapZoom(patch.zoom ?? current.zoom)
+  };
+}
+
+function resetMapViewOverride(viewKey = scenarioMapViewKey(activeScenario)) {
+  delete mapViewOverrides[viewKey];
+}
+
+function activeMapViewKey() {
+  return scenarioMapViewKey(activeScenario);
+}
+
+function syncMapScaleBadge() {
+  const view = mapViewForKey(activeMapViewKey());
+  const sourceLabel =
+    selectedMapImageSource === "osm"
+      ? "Free map"
+      : selectedMapImageSource === "google"
+        ? "Google"
+        : selectedMapImageSource === "simple"
+          ? "Simplified"
+          : "Auto";
+  mapScaleBadge.textContent = `${sourceLabel} · Zoom ${view.zoom} / 比例 ${view.zoom}`;
+}
+
 function clearMissionMapImage(status = "Auto scenario imagery / 自動情境底圖") {
   activeMapImageToken += 1;
   missionMap.classList.remove("has-image");
@@ -596,25 +649,24 @@ function clearMissionMapImage(status = "Auto scenario imagery / 自動情境底�
   clearOsmTileLayer();
   missionMap.style.removeProperty("--map-image");
   missionMap.style.removeProperty("--map-position");
+  missionMap.style.removeProperty("--map-size");
   osmMapFrame.classList.add("hidden");
   osmMapFrame.removeAttribute("src");
   mapImageStatus.textContent = status;
+  syncMapScaleBadge();
 }
 
 function googleStaticMapUrl(viewKey) {
   const url = new URL(`${localApiBase()}/api/map-image`, window.location.href);
   const view = mapViewForKey(viewKey);
+  const [lat, lng] = view.center;
 
-  if (view.dynamic) {
-    const [lat, lng] = view.center;
-    url.searchParams.set("lat", String(lat));
-    url.searchParams.set("lng", String(lng));
-    url.searchParams.set("label", view.markerLabel || "T");
-    url.searchParams.set("zoom", String(view.zoom));
-    url.searchParams.set("maptype", view.googleMapType || "terrain");
-  } else {
-    url.searchParams.set("scenario", viewKey);
-  }
+  url.searchParams.set("scenario", viewKey);
+  url.searchParams.set("lat", String(lat));
+  url.searchParams.set("lng", String(lng));
+  url.searchParams.set("label", view.markerLabel || viewKey.slice(0, 1));
+  url.searchParams.set("zoom", String(view.zoom));
+  url.searchParams.set("maptype", view.googleMapType || "terrain");
 
   return url.toString();
 }
@@ -629,7 +681,9 @@ function setMapBackground(url, status, position = "center") {
   missionMap.classList.add("has-image");
   missionMap.style.setProperty("--map-image", `url("${url}")`);
   missionMap.style.setProperty("--map-position", position);
+  missionMap.style.setProperty("--map-size", selectedMapImageSource === "simple" ? simpleMapBackgroundSize() : "cover");
   mapImageStatus.textContent = status;
+  syncMapScaleBadge();
 }
 
 function applySimpleScenarioMap(scenarioKey = activeScenario, statusPrefix = "") {
@@ -642,6 +696,13 @@ function applySimpleScenarioMap(scenarioKey = activeScenario, statusPrefix = "")
 
   const status = statusPrefix ? `${statusPrefix} ${preset.status}` : preset.status;
   setMapBackground(mapAssetPath(preset.file), status, preset.position);
+}
+
+function simpleMapBackgroundSize() {
+  const baseZoom = baseMapViewForKey(activeMapViewKey()).zoom;
+  const view = mapViewForKey(activeMapViewKey());
+  const scale = Math.max(100, Math.min(260, 100 + (view.zoom - baseZoom) * 22));
+  return `${scale}%`;
 }
 
 function probeMapImage(url) {
@@ -681,11 +742,29 @@ function osmTileUrl(zoom, x, y) {
 }
 
 function latLngToTile(lat, lng, zoom) {
+  const point = latLngToTilePoint(lat, lng, zoom);
+  return { x: Math.floor(point.x), y: Math.floor(point.y) };
+}
+
+function latLngToTilePoint(lat, lng, zoom) {
   const scale = 2 ** zoom;
-  const x = Math.floor(((lng + 180) / 360) * scale);
+  const x = ((lng + 180) / 360) * scale;
   const latRad = (lat * Math.PI) / 180;
-  const y = Math.floor(((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * scale);
+  const y = ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * scale;
   return { x, y };
+}
+
+function latLngToWorldPixels(lat, lng, zoom) {
+  const tile = latLngToTilePoint(lat, lng, zoom);
+  return { x: tile.x * 256, y: tile.y * 256 };
+}
+
+function worldPixelsToLatLng(x, y, zoom) {
+  const scale = 256 * 2 ** zoom;
+  const lng = (x / scale) * 360 - 180;
+  const n = Math.PI - (2 * Math.PI * y) / scale;
+  const lat = (180 / Math.PI) * Math.atan(Math.sinh(n));
+  return [Math.max(-85, Math.min(85, lat)), ((lng + 540) % 360) - 180];
 }
 
 function clearOsmTileLayer() {
@@ -696,19 +775,24 @@ function renderOsmTileLayer(viewKey) {
   const view = mapViewForKey(viewKey);
   const [lat, lng] = view.center;
   const zoom = view.zoom;
-  const centerTile = latLngToTile(lat, lng, zoom);
+  const centerTile = latLngToTilePoint(lat, lng, zoom);
   const layer = document.createElement("div");
   layer.className = "osm-tile-layer";
 
   const columns = Math.max(4, Math.ceil((missionMap.clientWidth || 900) / 256) + 2);
   const rows = Math.max(3, Math.ceil((missionMap.clientHeight || 520) / 256) + 2);
-  const startX = centerTile.x - Math.floor(columns / 2);
-  const startY = centerTile.y - Math.floor(rows / 2);
+  const startX = Math.floor(centerTile.x - columns / 2);
+  const startY = Math.floor(centerTile.y - rows / 2);
+  const centerOffsetX = Math.round((centerTile.x - startX) * 256);
+  const centerOffsetY = Math.round((centerTile.y - startY) * 256);
 
   layer.style.gridTemplateColumns = `repeat(${columns}, 256px)`;
   layer.style.gridTemplateRows = `repeat(${rows}, 256px)`;
   layer.style.width = `${columns * 256}px`;
   layer.style.height = `${rows * 256}px`;
+  layer.style.left = "50%";
+  layer.style.top = "50%";
+  layer.style.transform = `translate(${-centerOffsetX}px, ${-centerOffsetY}px)`;
 
   for (let row = 0; row < rows; row += 1) {
     for (let column = 0; column < columns; column += 1) {
@@ -726,9 +810,11 @@ function renderOsmTileLayer(viewKey) {
   missionMap.classList.add("has-osm-tiles");
   missionMap.style.removeProperty("--map-image");
   missionMap.style.removeProperty("--map-position");
+  missionMap.style.removeProperty("--map-size");
   osmMapFrame.classList.add("hidden");
   osmMapFrame.removeAttribute("src");
   missionMap.prepend(layer);
+  syncMapScaleBadge();
 }
 
 async function tryFreeMapProvider({ token, viewKey, status, loadingStatus }) {
@@ -837,6 +923,75 @@ function updateMapImageFromCurrentState() {
   }
 
   applyMissionMapImage(activeScenario);
+}
+
+function changeMapZoom(delta) {
+  if (missionMap.classList.contains("idle")) return;
+  const viewKey = activeMapViewKey();
+  const view = mapViewForKey(viewKey);
+  setMapViewOverride(viewKey, { center: view.center, zoom: view.zoom + delta });
+  updateMapImageFromCurrentState();
+}
+
+function resetCurrentMapView() {
+  resetMapViewOverride(activeMapViewKey());
+  updateMapImageFromCurrentState();
+}
+
+function panMapByPixels(deltaX, deltaY) {
+  if (missionMap.classList.contains("idle")) return;
+  const viewKey = activeMapViewKey();
+  const view = mapViewForKey(viewKey);
+  const [lat, lng] = view.center;
+  const world = latLngToWorldPixels(lat, lng, view.zoom);
+  const nextCenter = worldPixelsToLatLng(world.x - deltaX, world.y - deltaY, view.zoom);
+  setMapViewOverride(viewKey, { center: nextCenter, zoom: view.zoom });
+  updateMapImageFromCurrentState();
+}
+
+function mapPointerTargetIsControl(event) {
+  return Boolean(event.target.closest("button, input, select, textarea, .map-navigation-controls"));
+}
+
+function beginMapDrag(event) {
+  if (missionMap.classList.contains("idle") || mapPointerTargetIsControl(event)) return;
+  mapDragState = {
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    moved: false
+  };
+  lastMapDragMoved = false;
+  missionMap.classList.add("dragging");
+  missionMap.setPointerCapture?.(event.pointerId);
+}
+
+function updateMapDrag(event) {
+  if (!mapDragState || mapDragState.pointerId !== event.pointerId) return;
+  const deltaX = event.clientX - mapDragState.startX;
+  const deltaY = event.clientY - mapDragState.startY;
+  mapDragState.moved = Math.abs(deltaX) + Math.abs(deltaY) > 8;
+}
+
+function endMapDrag(event) {
+  if (!mapDragState || mapDragState.pointerId !== event.pointerId) return;
+  const deltaX = event.clientX - mapDragState.startX;
+  const deltaY = event.clientY - mapDragState.startY;
+  const shouldPan = mapDragState.moved;
+  lastMapDragMoved = shouldPan;
+  mapDragState = null;
+  missionMap.classList.remove("dragging");
+  missionMap.releasePointerCapture?.(event.pointerId);
+
+  if (shouldPan) {
+    panMapByPixels(deltaX, deltaY);
+  }
+}
+
+function zoomMapFromWheel(event) {
+  if (missionMap.classList.contains("idle") || mapPointerTargetIsControl(event)) return;
+  event.preventDefault();
+  changeMapZoom(event.deltaY < 0 ? 1 : -1);
 }
 
 function mapAssetNamesFromPlan(planSource, fallbackNames = []) {
@@ -1836,6 +1991,7 @@ const scenarios = {
 function setScenario(nextScenario) {
   activeScenario = nextScenario;
   activeCustomTarget = null;
+  Object.keys(mapViewOverrides).forEach((key) => delete mapViewOverrides[key]);
   approved = false;
   approveButton.disabled = true;
   exportButton.disabled = true;
@@ -2389,6 +2545,15 @@ mapModeButtons.forEach((button) => {
   button.addEventListener("click", () => setMapImageSource(button.dataset.mapSource));
 });
 
+mapZoomInButton.addEventListener("click", () => changeMapZoom(1));
+mapZoomOutButton.addEventListener("click", () => changeMapZoom(-1));
+mapResetViewButton.addEventListener("click", resetCurrentMapView);
+missionMap.addEventListener("pointerdown", beginMapDrag);
+missionMap.addEventListener("pointermove", updateMapDrag);
+missionMap.addEventListener("pointerup", endMapDrag);
+missionMap.addEventListener("pointercancel", endMapDrag);
+missionMap.addEventListener("wheel", zoomMapFromWheel, { passive: false });
+
 mapImageUpload.addEventListener("change", () => {
   const [file] = mapImageUpload.files;
   if (!file) return;
@@ -2475,6 +2640,11 @@ drawAoiButton.addEventListener("click", () => {
 });
 
 document.querySelector(".mission-map").addEventListener("click", () => {
+  if (lastMapDragMoved) {
+    lastMapDragMoved = false;
+    return;
+  }
+
   if (activeScenario === "construction" && !constructionResolved && !aoiHint.classList.contains("hidden")) {
     resolveConstructionTarget("map");
   }
