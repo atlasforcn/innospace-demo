@@ -2639,29 +2639,90 @@ function renderCustomScenario(llmResult = null, target = null) {
   syncAoiOverlay();
 }
 
-async function requestLlmIntent() {
+function fastFallbackIntent(prompt) {
+  const raw = String(prompt || "");
+  const lower = raw.toLowerCase();
+  const isConstruction = activeScenario === "construction" || lower.includes("construction") || lower.includes("site") || /施工|工地/.test(raw);
+  const isWildfire = activeScenario === "wildfire" || lower.includes("wildfire") || lower.includes("fire") || /森林大火|山火|火災|落基山|洛磯山/.test(raw);
+  const isLandslide = lower.includes("landslide") || lower.includes("debris") || lower.includes("mudslide") || /土石流|山崩/.test(raw);
+  const isCustomDrill = activeScenario === "custom" || lower.includes("custom") || lower.includes("slew") || lower.includes("off-nadir");
+  const needsClarification = isConstruction && /\bthis site\b|這裡|這個地點|該地點/i.test(raw);
+  const targetLabel =
+    /西雅圖|seattle/i.test(raw)
+      ? "Downtown Seattle, Seattle, WA, USA"
+      : /alishan|阿里山|chiayi|嘉義/i.test(raw)
+        ? "Alishan Township, Chiayi County, Taiwan"
+        : /落基山|洛磯山|rocky/i.test(raw)
+          ? "Rocky Mountains, Colorado, USA"
+          : /華盛頓|washington|d\.c\./i.test(raw)
+            ? "Washington, DC, USA"
+            : isConstruction
+              ? "ambiguous construction site"
+              : "operator-defined custom AOI";
+
+  return {
+    source: "fast_fallback",
+    warning: "LLM response was not required for demo-speed planning; deterministic parsing was used.",
+    intent: {
+      mission_category: isCustomDrill ? "custom_off_nadir_imaging_drill" : isConstruction ? "recurring_site_monitoring" : isWildfire || isLandslide ? "urgent_disaster_response" : "change_detection",
+      priority: isWildfire || isLandslide ? "high" : "routine",
+      target_resolution: {
+        status: needsClarification ? "needs_clarification" : "candidate",
+        label: targetLabel,
+        geometry: isWildfire || isLandslide ? "regional_area" : "point"
+      },
+      observation_request: {
+        payload_family: "optical",
+        gsd_target_m: isWildfire || isLandslide ? 3 : 1,
+        cadence: isConstruction ? "daily" : "once",
+        delivery_latency: isWildfire || isLandslide ? "rapid" : "best_effort"
+      },
+      constraints: {
+        preserve_existing_missions: true,
+        comparable_lighting: isConstruction,
+        max_off_nadir_deg: isConstruction ? 8 : isCustomDrill ? 35 : 25,
+        cloud_tolerance_pct: null
+      },
+      operator_gate: true,
+      clarification_questions: needsClarification
+        ? ["Please provide an address, coordinates, or draw an AOI for the construction site."]
+        : []
+    }
+  };
+}
+
+async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 1200) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
   try {
-    const response = await fetch(apiUrl("/api/interpret"), {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    if (!response.ok) return null;
+    return await response.json();
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+async function requestLlmIntent() {
+  const fallback = fastFallbackIntent(missionPrompt.value);
+
+  try {
+    const result = await fetchJsonWithTimeout(apiUrl("/api/interpret"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt: missionPrompt.value })
     });
 
-    if (!response.ok) {
-      return { source: "api_error", warning: "Interpret API returned an error." };
-    }
-
-    return await response.json();
+    return result?.intent ? result : fallback;
   } catch (error) {
-    return null;
+    return fallback;
   }
 }
 
 async function requestGeocode(address) {
   try {
-    const response = await fetch(apiUrl(`/api/geocode?q=${encodeURIComponent(address)}`));
-    if (!response.ok) return null;
-    return await response.json();
+    return await fetchJsonWithTimeout(apiUrl(`/api/geocode?q=${encodeURIComponent(address)}`), {}, 1800);
   } catch (error) {
     return null;
   }
@@ -2701,6 +2762,7 @@ function llmSourceLabel(source) {
   if (source === "openrouter") return "OpenRouter Free / OpenRouter 免費路由";
   if (source === "openrouter_grok") return "OpenRouter Grok / OpenRouter Grok 備援";
   if (source === "openai") return "OpenAI API";
+  if (source === "fast_fallback") return "Fast deterministic parser / 快速規則解析";
   return "Fallback parser / 後備解析器";
 }
 
