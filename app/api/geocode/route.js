@@ -20,7 +20,7 @@ const fallbackLocations = [
     place_id: "fallback-alishan-taiwan"
   },
   {
-    pattern: /rocky|mountain|wildfire|colorado/i,
+    pattern: /rocky|mountain|wildfire|colorado|落基山|洛磯山|森林大火|山火|火災/i,
     formatted_address: "Rocky Mountains, Colorado, USA",
     location: { lat: 39.18, lng: -106.82 },
     place_id: "fallback-rocky-mountains"

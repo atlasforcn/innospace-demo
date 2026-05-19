@@ -226,6 +226,10 @@ h2 {
   font-weight: 700;
 }
 
+.presentation-mode .mission-input .button-row {
+  display: none;
+}
+
 .input-rail {
   --rail-accent: var(--blue);
 }

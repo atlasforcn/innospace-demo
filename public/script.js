@@ -80,6 +80,8 @@ let presentationModeEnabled = true;
 let currentWorkflowState = "idle";
 let progressSteps = [];
 let activeCustomTarget = null;
+let activeResolvedTarget = null;
+let analysisInProgress = false;
 let mapDragState = null;
 let lastMapDragMoved = false;
 const mapViewOverrides = {};
@@ -497,7 +499,15 @@ function updatePresentationStep() {
   currentStepHint.textContent = stepHintFromPanel(activePanel);
 
   prevStepButton.disabled = nearestAvailableStep(activePresentationStepIndex, -1) === null;
-  nextStepButton.disabled = nearestAvailableStep(activePresentationStepIndex, 1) === null;
+  const isRequestStep = step.key === "request";
+  nextStepButton.textContent = isRequestStep
+    ? analysisInProgress
+      ? "Analyzing / 分析中"
+      : "Analyze & Continue / 分析並下一步"
+    : "Next / 下一步";
+  nextStepButton.disabled = analysisInProgress || (!isRequestStep && nearestAvailableStep(activePresentationStepIndex, 1) === null);
+  analyzeButton.disabled = analysisInProgress;
+  analyzeButton.textContent = analysisInProgress ? "Analyzing / 分析中" : "Analyze Request / 分析需求";
 
   syncPresentationFlowClasses(currentWorkflowState);
 }
@@ -557,6 +567,14 @@ function cleanDisplayText(value, fallback = "Custom AOI") {
   return text ? text.slice(0, 120) : fallback;
 }
 
+function formatCoordinatePair(lat, lng) {
+  const latValue = Number(lat);
+  const lngValue = Number(lng);
+  const latSuffix = latValue >= 0 ? "N" : "S";
+  const lngSuffix = lngValue >= 0 ? "E" : "W";
+  return `${Math.abs(latValue).toFixed(4)} deg ${latSuffix}, ${Math.abs(lngValue).toFixed(4)} deg ${lngSuffix}`;
+}
+
 function targetRefFromTarget(target) {
   const ascii = String(target?.label || target?.query || "")
     .normalize("NFKD")
@@ -577,6 +595,18 @@ function targetRefFromTarget(target) {
 }
 
 function baseMapViewForKey(viewKey) {
+  if (viewKey === "wildfire" && activeResolvedTarget?.scenario === "wildfire" && hasTargetCoordinates(activeResolvedTarget)) {
+    const label = cleanDisplayText(activeResolvedTarget.label || activeResolvedTarget.query, "wildfire AOI");
+    return {
+      ...mapLiveViews.wildfire,
+      center: [Number(activeResolvedTarget.location.lat), Number(activeResolvedTarget.location.lng)],
+      googleStatus: `Google Maps: ${label} / Google 地圖：語意解析 AOI`,
+      freeStatus: `Free map: ${label} / 免費地圖：語意解析 AOI`,
+      dynamic: true,
+      markerLabel: "F"
+    };
+  }
+
   if (viewKey === "custom" && hasTargetCoordinates()) {
     const label = cleanDisplayText(activeCustomTarget.label || activeCustomTarget.query);
     const isHazard = activeCustomTarget.need?.type === "hazard_response";
@@ -680,7 +710,7 @@ function setMapBackground(url, status, position = "center") {
   osmMapFrame.removeAttribute("src");
   missionMap.classList.add("has-image");
   missionMap.style.setProperty("--map-image", `url("${url}")`);
-  missionMap.style.setProperty("--map-position", position);
+  missionMap.style.setProperty("--map-position", selectedMapImageSource === "simple" ? simpleMapBackgroundPosition(position) : position);
   missionMap.style.setProperty("--map-size", selectedMapImageSource === "simple" ? simpleMapBackgroundSize() : "cover");
   mapImageStatus.textContent = status;
   syncMapScaleBadge();
@@ -703,6 +733,21 @@ function simpleMapBackgroundSize() {
   const view = mapViewForKey(activeMapViewKey());
   const scale = Math.max(100, Math.min(260, 100 + (view.zoom - baseZoom) * 22));
   return `${scale}%`;
+}
+
+function simpleMapBackgroundPosition(fallbackPosition = "center") {
+  const viewKey = activeMapViewKey();
+  const base = baseMapViewForKey(viewKey);
+  const view = mapViewForKey(viewKey);
+  const [baseLat, baseLng] = base.center;
+  const [viewLat, viewLng] = view.center;
+  const baseWorld = latLngToWorldPixels(baseLat, baseLng, view.zoom);
+  const viewWorld = latLngToWorldPixels(viewLat, viewLng, view.zoom);
+  const deltaX = Math.round(baseWorld.x - viewWorld.x);
+  const deltaY = Math.round(baseWorld.y - viewWorld.y);
+
+  if (!deltaX && !deltaY) return fallbackPosition;
+  return `calc(50% + ${deltaX}px) calc(50% + ${deltaY}px)`;
 }
 
 function probeMapImage(url) {
@@ -1330,12 +1375,51 @@ function extractCustomTargetQuery(prompt) {
   const source = String(prompt || "").trim();
   const cleaned = source
     .replace(/[，。！？、,.!?]/g, " ")
-    .replace(/\b(use|my|custom|constellation|fleet|satellite|satellites|to|as|soon|possible|image|monitor|detect|observe|acquire|for|the|a|an|please|drill|test|slew|off-nadir|off nadir|include)\b/gi, " ")
-    .replace(/請|幫我|使用|自訂|星系|衛星|檢測|偵測|拍攝|監測|觀測|取得|針對|快速|盡快|土石流|山崩|森林大火|山火|火災|施工|工地|狀況/g, " ")
+    .replace(/\b(use|my|custom|constellation|fleet|satellite|satellites|reported|report|request|need|to|as|soon|possible|image|imagery|monitor|detect|observe|acquire|scan|survey|for|over|near|around|the|a|an|please|drill|test|slew|off-nadir|off nadir|include)\b/gi, " ")
+    .replace(/請|幫我|使用|自訂|星系|衛星|需要|要求|回報|發生|檢測|偵測|掃描|拍攝|監測|觀測|取得|針對|快速|盡快|土石流|山崩|森林大火|山火|火災|施工|工地|狀況/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 
   return cleaned || source;
+}
+
+function addUniqueCandidate(candidates, value) {
+  const text = cleanDisplayText(value, "").replace(/\bcandidate AOI\b/gi, "").trim();
+  if (!text || /unspecified|ambiguous|operator-defined custom/i.test(text)) return;
+  if (!candidates.some((candidate) => candidate.toLowerCase() === text.toLowerCase())) {
+    candidates.push(text);
+  }
+}
+
+function semanticTargetCandidates(prompt, llmResult = null, scenarioKey = activeScenario) {
+  const raw = String(prompt || "").trim();
+  const candidates = [];
+  addUniqueCandidate(candidates, llmResult?.intent?.target_resolution?.label);
+
+  if (/阿里山|alishan/i.test(raw)) addUniqueCandidate(candidates, "Alishan Township, Chiayi County, Taiwan");
+  if (/落基山|洛磯山|rocky/i.test(raw)) addUniqueCandidate(candidates, "Rocky Mountains");
+  if (/華盛頓|washington|d\.c\./i.test(raw)) addUniqueCandidate(candidates, "Washington, DC, USA");
+
+  const locationAfterIn = raw.match(/\b(?:in|near|over|around)\s+([^.;，。]+)/i);
+  if (locationAfterIn?.[1]) addUniqueCandidate(candidates, locationAfterIn[1]);
+
+  addUniqueCandidate(candidates, extractCustomTargetQuery(raw));
+  if (scenarioKey !== "construction" || !/\bthis site\b|這裡|這個地點|該地點/i.test(raw)) {
+    addUniqueCandidate(candidates, raw);
+  }
+
+  return candidates;
+}
+
+async function requestBestGeocode(candidates) {
+  for (const candidate of candidates) {
+    const result = await requestGeocode(candidate);
+    if (result?.result?.location) {
+      return { ...result, query_candidate: candidate };
+    }
+  }
+
+  return candidates.length ? await requestGeocode(candidates[0]) : null;
 }
 
 function inferCustomObservationNeed(prompt) {
@@ -1380,8 +1464,8 @@ function inferCustomObservationNeed(prompt) {
   };
 }
 
-function buildCustomTarget(prompt, geocodeResult) {
-  const query = extractCustomTargetQuery(prompt);
+function buildCustomTarget(prompt, geocodeResult, llmResult = null) {
+  const query = cleanDisplayText(geocodeResult?.query_candidate || semanticTargetCandidates(prompt, llmResult, "custom")[0] || extractCustomTargetQuery(prompt), "Custom target");
   const result = geocodeResult?.result;
   const lat = Number(result?.location?.lat);
   const lng = Number(result?.location?.lng);
@@ -1409,6 +1493,54 @@ function buildCustomTarget(prompt, geocodeResult) {
     warning: geocodeResult?.warning || "Target could not be converted into coordinates.",
     need
   };
+}
+
+function buildResolvedTarget(prompt, geocodeResult, llmResult = null, scenarioKey = activeScenario) {
+  const query = cleanDisplayText(
+    geocodeResult?.query_candidate || semanticTargetCandidates(prompt, llmResult, scenarioKey)[0] || extractCustomTargetQuery(prompt),
+    scenarioKey === "wildfire" ? "wildfire AOI" : "mission AOI"
+  );
+  const result = geocodeResult?.result;
+  const lat = Number(result?.location?.lat);
+  const lng = Number(result?.location?.lng);
+  const need = inferCustomObservationNeed(prompt);
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+  const target = {
+    status: "resolved",
+    scenario: scenarioKey,
+    label: cleanDisplayText(result.formatted_address || query),
+    query,
+    source: geocodeResult?.source || "fallback",
+    location: { lat, lng },
+    need
+  };
+  target.ref = targetRefFromTarget(target);
+  return target;
+}
+
+function commandWithResolvedTarget(command, target, fallbackRef = "TARGET-AOI") {
+  if (!command || !hasTargetCoordinates(target)) return command;
+  const packet = JSON.parse(JSON.stringify(command));
+  const targetRef = target.ref || fallbackRef;
+
+  packet.target = {
+    ...(packet.target || {}),
+    label: target.label,
+    center_lat: target.location.lat,
+    center_lon: target.location.lng,
+    geometry: target.need?.type === "hazard_response" ? "regional_area" : packet.target?.geometry || "point",
+    target_ref: targetRef
+  };
+
+  for (const sequence of packet.sequences || []) {
+    if (sequence.parameters?.target_ref) {
+      sequence.parameters.target_ref = targetRef;
+    }
+  }
+
+  return packet;
 }
 
 function customIntentEntries(target) {
@@ -1991,6 +2123,7 @@ const scenarios = {
 function setScenario(nextScenario) {
   activeScenario = nextScenario;
   activeCustomTarget = null;
+  activeResolvedTarget = null;
   Object.keys(mapViewOverrides).forEach((key) => delete mapViewOverrides[key]);
   approved = false;
   approveButton.disabled = true;
@@ -2208,8 +2341,12 @@ function renderNarrativePanels() {
   renderScenarioFlows();
 }
 
-function renderWildfire() {
+function renderWildfire(target = null) {
   const scenario = scenarios.wildfire;
+  activeResolvedTarget = hasTargetCoordinates(target) ? { ...target, scenario: "wildfire" } : null;
+  const targetLabel = activeResolvedTarget?.label || "Rocky Mountains wildfire AOI";
+  const targetLat = activeResolvedTarget?.location?.lat ?? 39.18;
+  const targetLng = activeResolvedTarget?.location?.lng ?? -106.82;
 
   missionMap.classList.remove("idle");
   applyMissionMapImage("wildfire");
@@ -2220,18 +2357,28 @@ function renderWildfire() {
   renderMapAssets(mapAssetNamesFromPlan(scenario, ["SAT-A", "SAT-B", "SAT-C"]), selectedAssetNamesFromPlan(scenario), true);
   clarificationBox.className = "clarification-box ready";
   clarificationBox.innerHTML = "<strong>Ready / 已就緒。</strong><p>The target phrase can be resolved into a wildfire search AOI, so the system can proceed into imaging requirements and tasking analysis. / 系統能將該地名轉成火災搜尋 AOI，因此可進入成像需求與任務分析。</p>";
-  mapCaption.textContent = "Rocky Mountains wildfire search region resolved from natural language. / 已從自然語言解析出落基山火災搜尋區域。";
+  mapCaption.textContent = `${targetLabel} resolved from natural language. / 已從自然語言解析出 ${targetLabel}。`;
   mapBadge.textContent = "AOI resolved / 區域已解析";
   constellationBadge.textContent = scenario.constellation;
 
-  renderDefinitionList(scenario.intent);
+  renderDefinitionList(
+    scenario.intent.map(([label, value]) => {
+      if (label.startsWith("Geolocation")) {
+        return [label, `${targetLabel} resolved to an executable AOI / 已將 ${targetLabel} 解析為可執行 AOI`];
+      }
+      if (label.startsWith("Derived target")) {
+        return [label, `Representative AOI center: ${formatCoordinatePair(targetLat, targetLng)} / 代表中心點已建立`];
+      }
+      return [label, value];
+    })
+  );
   renderCards(scenario.satellites);
   renderSuitabilityModel();
   renderDecisionRows(scenario.decisions);
   renderRecommendedAsset(scenario.recommendedAsset);
   renderTimeline(scenario.timeline);
   renderCommandBoundary();
-  activeCommandPacket = scenario.command;
+  activeCommandPacket = commandWithResolvedTarget(scenario.command, activeResolvedTarget, "WF-AOI-001");
   updateWorkflowProgress("planned");
   planStatus.textContent = "Validated recommendation ready / 已產出可審核建議";
 }
@@ -2443,50 +2590,76 @@ function llmSourceLabel(source) {
 }
 
 async function analyzeMission() {
-  approved = false;
-  exportButton.disabled = true;
-  exportButton.textContent = "Export Command Packet / 匯出指令封包";
-  activeCommandPacket = null;
-  commandStatus.textContent = "Locked until approval / 核准前鎖定";
-  commandOutput.textContent = "Approve a validated plan to reveal the execution packet.\n/ 批准已驗證的任務計畫後，系統才會展開執行指令。";
+  if (analysisInProgress) return;
 
-  const llmPromise = requestLlmIntent();
-
-  if (activeScenario === "wildfire") {
-    renderWildfire();
-    approveButton.disabled = !activeCommandPacket;
-    goToPresentationStep(1);
-    appendLlmIntentSummary(await llmPromise);
-    updatePresentationStep();
-    return;
-  }
-
-  if (activeScenario === "custom") {
-    const targetQuery = extractCustomTargetQuery(missionPrompt.value);
-    const [llmResult, geocodeResult] = await Promise.all([llmPromise, requestGeocode(targetQuery)]);
-    const customTarget = buildCustomTarget(missionPrompt.value, geocodeResult);
-    renderCustomScenario(llmResult, customTarget);
-    approveButton.disabled = !activeCommandPacket;
-    goToPresentationStep(activeCommandPacket ? 2 : 1);
-    appendLlmIntentSummary(llmResult);
-    updatePresentationStep();
-    return;
-  }
-
-  if (!constructionResolved) {
-    renderConstruction(false);
-    approveButton.disabled = true;
-    goToPresentationStep(1);
-    appendLlmIntentSummary(await llmPromise);
-    updatePresentationStep();
-    return;
-  }
-
-  renderConstruction(true);
-  approveButton.disabled = !activeCommandPacket;
-  goToPresentationStep(2);
-  appendLlmIntentSummary(await llmPromise);
+  analysisInProgress = true;
   updatePresentationStep();
+
+  try {
+    approved = false;
+    exportButton.disabled = true;
+    exportButton.textContent = "Export Command Packet / 匯出指令封包";
+    activeCommandPacket = null;
+    commandStatus.textContent = "Locked until approval / 核准前鎖定";
+    commandOutput.textContent = "Approve a validated plan to reveal the execution packet.\n/ 批准已驗證的任務計畫後，系統才會展開執行指令。";
+
+    const llmResult = await requestLlmIntent();
+
+    if (activeScenario === "wildfire") {
+      const geocodeResult = await requestBestGeocode(semanticTargetCandidates(missionPrompt.value, llmResult, "wildfire"));
+      const target = buildResolvedTarget(missionPrompt.value, geocodeResult, llmResult, "wildfire");
+      renderWildfire(target);
+      approveButton.disabled = !activeCommandPacket;
+      goToPresentationStep(1);
+      appendLlmIntentSummary(llmResult);
+      return;
+    }
+
+    if (activeScenario === "custom") {
+      const geocodeResult = await requestBestGeocode(semanticTargetCandidates(missionPrompt.value, llmResult, "custom"));
+      const customTarget = buildCustomTarget(missionPrompt.value, geocodeResult, llmResult);
+      renderCustomScenario(llmResult, customTarget);
+      approveButton.disabled = !activeCommandPacket;
+      goToPresentationStep(activeCommandPacket ? 2 : 1);
+      appendLlmIntentSummary(llmResult);
+      return;
+    }
+
+    if (!constructionResolved) {
+      const candidates = semanticTargetCandidates(missionPrompt.value, llmResult, "construction");
+      const canAutoResolve =
+        llmResult?.intent?.target_resolution?.status !== "needs_clarification" &&
+        candidates.length &&
+        !/\bthis site\b|這裡|這個地點|該地點/i.test(missionPrompt.value);
+      const geocodeResult = canAutoResolve ? await requestBestGeocode(candidates) : null;
+
+      if (geocodeResult?.result?.location) {
+        constructionResolved = true;
+        renderConstruction(true);
+        clarificationBox.className = "clarification-box ready";
+        clarificationBox.innerHTML =
+          `<strong>Target resolved / 目標已解析。</strong><p>Google geocoding converted the prompt into ${geocodeResult.result.formatted_address} (${geocodeResult.result.location.lat.toFixed(4)}, ${geocodeResult.result.location.lng.toFixed(4)}). The recurring imaging planner can continue. / 系統已將需求解析為 ${geocodeResult.result.formatted_address}（${geocodeResult.result.location.lat.toFixed(4)}, ${geocodeResult.result.location.lng.toFixed(4)}），可以繼續建立週期性拍攝計畫。</p>`;
+        approveButton.disabled = !activeCommandPacket;
+        goToPresentationStep(2);
+        appendLlmIntentSummary(llmResult);
+        return;
+      }
+
+      renderConstruction(false);
+      approveButton.disabled = true;
+      goToPresentationStep(1);
+      appendLlmIntentSummary(llmResult);
+      return;
+    }
+
+    renderConstruction(true);
+    approveButton.disabled = !activeCommandPacket;
+    goToPresentationStep(2);
+    appendLlmIntentSummary(llmResult);
+  } finally {
+    analysisInProgress = false;
+    updatePresentationStep();
+  }
 }
 
 function resolveConstructionTarget(mode, geocodeResult = null) {
@@ -2595,6 +2768,11 @@ prevStepButton.addEventListener("click", () => {
 });
 
 nextStepButton.addEventListener("click", () => {
+  if (presentationSteps[activePresentationStepIndex]?.key === "request") {
+    analyzeMission();
+    return;
+  }
+
   const nextStep = nearestAvailableStep(activePresentationStepIndex, 1);
   if (nextStep !== null) goToPresentationStep(nextStep);
 });

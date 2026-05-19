@@ -1,9 +1,9 @@
 # Mission Abstraction Layer Demo / 任務抽象層展示系統
 
-This prototype is a browser-ready competition demo for an operator-supervised EO mission orchestration concept.  
+This prototype is a browser-ready competition demo for an operator-supervised EO mission orchestration concept.
 這是一個可直接於瀏覽器展示的競賽 demo，用來呈現「操作員監督式」地球觀測任務編排概念。
 
-It is designed to show both future product value and practical mission feasibility.  
+It is designed to show both future product value and practical mission feasibility.
 它的目標是同時展現未來產品價值，以及在任務操作上的實務可行性。
 
 ## What is included / 目前包含內容
@@ -49,39 +49,39 @@ It is designed to show both future product value and practical mission feasibili
 
 ## How to view / 如何查看
 
-Open `index.html` in a browser.  
+Open `index.html` in a browser.
 以瀏覽器開啟 `index.html` 即可查看。
 
 Recommended walkthrough / 建議展示順序：
 
-1. Start with the wildfire preset and click `Analyze Request`  
+1. Start with the wildfire preset and click `Analyze Request`
    先選擇森林大火情境，按下 `Analyze Request`
-2. Move through the unlocked mission cards: target gate, requirements, AOI/access, fleet readiness, feasibility rules, and candidate decision  
+2. Move through the unlocked mission cards: target gate, requirements, AOI/access, fleet readiness, feasibility rules, and candidate decision
    依序查看已解鎖的任務卡片：目標檢核、任務需求、區域與可見性、衛星可用性、可行性規則與候選決策
-3. Review the recommended plan and the selected spacecraft  
+3. Review the recommended plan and the selected spacecraft
    查看建議任務計畫與最建議衛星
-4. Inspect the ADCS and camera commands under each step  
+4. Inspect the ADCS and camera commands under each step
    檢視每一步底下拆分出的 ADCS 與攝影機指令
-5. Click `Approve Mission Plan`  
+5. Click `Approve Mission Plan`
    按下 `Approve Mission Plan`
-6. Review the revealed machine command packet  
+6. Review the revealed machine command packet
    查看展開後的機器指令封包
-7. Switch to the construction preset  
+7. Switch to the construction preset
    切換到建築工地監測情境
-8. Observe that the system pauses because `this site` is not geolocatable  
+8. Observe that the system pauses because `this site` is not geolocatable
    觀察系統因為 `this site` 無法定位，而暫停往下規劃
-9. Resolve the target using an address or AOI drawing flow  
+9. Resolve the target using an address or AOI drawing flow
    透過地址或地圖 AOI 框選完成目標解析
-10. Review the recurring monitoring plan and command sequence  
+10. Review the recurring monitoring plan and command sequence
    查看週期性監測計畫與對應命令序列
-11. Switch to `Custom Fleet Drill`, edit the sandbox satellites, and run the custom drill  
+11. Switch to `Custom Fleet Drill`, edit the sandbox satellites, and run the custom drill
     切換到 `Custom Fleet Drill`，修改沙盒衛星後執行自訂驗證
-12. Review why each custom satellite is recommended, traded off, or rejected by slew capability and battery safety  
+12. Review why each custom satellite is recommended, traded off, or rejected by slew capability and battery safety
     查看每顆自訂衛星為何因轉向能力與電量安全被推薦、保留或拒絕
 
 ## Operator flow logic / 操作流程邏輯
 
-The demo uses a single tasking state machine so the interface cannot advance into spacecraft planning before the request is valid.  
+The demo uses a single tasking state machine so the interface cannot advance into spacecraft planning before the request is valid.
 這個 demo 使用單一任務狀態機，避免介面在需求尚未有效前就進入衛星規劃。
 
 - `idle`: only mission intake is available; result cards are locked / 只開放任務輸入，結果卡片鎖定
@@ -90,15 +90,15 @@ The demo uses a single tasking state machine so the interface cannot advance int
 - `approved`: operator approval unlocks the command packet / 操作員批准後解鎖指令封包
 - `exported`: command packet export is simulated for handoff / 模擬匯出指令封包以供展示交接
 
-The left flow is always visible. Mission cards are opened only when their state allows it; setup cards stay available for scenario testing.  
+The left flow is always visible. Mission cards are opened only when their state allows it; setup cards stay available for scenario testing.
 左側流程常駐顯示。任務卡片只有在狀態允許時才能開啟；展示設定卡片則保持可用，方便測試情境。
 
-Preset wildfire and construction scenarios intentionally ignore the custom sandbox so they remain stable for presentation. The sandbox feeds only the Custom Fleet Drill scenario.  
+Preset wildfire and construction scenarios intentionally ignore the custom sandbox so they remain stable for presentation. The sandbox feeds only the Custom Fleet Drill scenario.
 森林大火與工地監測會刻意忽略自訂沙盒，確保展演時預設情境穩定；沙盒只會套用到自訂星系驗證情境。
 
 ## Research-backed model / 研究後新增的模型
 
-The current demo now reflects a deeper satellite tasking model.  
+The current demo now reflects a deeper satellite tasking model.
 目前 demo 已加入更完整的衛星任務判斷模型：
 
 - Orbit and viewing geometry / 軌道與觀測幾何
@@ -117,10 +117,10 @@ Related files / 相關檔案：
 
 ## LLM boundary choice / LLM 邊界方案
 
-The recommended architecture is **not RAG-first** and **not skill-first**.  
+The recommended architecture is **not RAG-first** and **not skill-first**.
 建議架構不是以 RAG 為主，也不是以 skill 為主。
 
-The strongest option is a layered boundary: **Structured intent schema + deterministic planner + allowlisted command DSL + validator gate**.  
+The strongest option is a layered boundary: **Structured intent schema + deterministic planner + allowlisted command DSL + validator gate**.
 最穩的方案是：**結構化任務 schema + 可驗證 planner + 白名單指令 DSL + 驗證器 gate**。
 
 See / 詳見：
@@ -132,10 +132,10 @@ See / 詳見：
 
 ## LLM provider decision / LLM 接入決策
 
-Use the OpenAI API directly. Do not connect the ChatGPT consumer app as the backend API.  
+Use the OpenAI API directly. Do not connect the ChatGPT consumer app as the backend API.
 建議直接使用 OpenAI API，不要把 ChatGPT 網頁版或訂閱本身當作後端 API。
 
-The API key should live only on the server side.  
+The API key should live only on the server side.
 API key 只能放在後端，不能放在瀏覽器前端。
 
 Related files / 相關檔案：
@@ -145,13 +145,13 @@ Related files / 相關檔案：
 
 ## API key safety / API Key 安全
 
-This repository is public, so real API keys must never be committed.  
+This repository is public, so real API keys must never be committed.
 這個 repo 是公開的，所以絕對不能 commit 真實 API key。
 
-Use `.env.example` as a template and store the real key only in `.env.local` or a hosting provider secret manager.  
+Use `.env.example` as a template and store the real key only in `.env.local` or a hosting provider secret manager.
 請用 `.env.example` 當模板，真實 key 只能放在 `.env.local` 或部署平台的 secret manager。
 
-If a key has been pasted into a shared place, revoke it and create a new one.  
+If a key has been pasted into a shared place, revoke it and create a new one.
 如果 key 曾被貼到共享環境，請刪除那把 key 並重新建立。
 
 See / 詳見：
@@ -161,14 +161,14 @@ See / 詳見：
 
 ## Vercel deployment and API route / Vercel 部署與 API
 
-The project has been upgraded to a Next.js app so Vercel can run a server-side API route.  
+The project has been upgraded to a Next.js app so Vercel can run a server-side API route.
 專案已升級成 Next.js，讓 Vercel 可以執行後端 API route。
 
 - Frontend page / 前端頁面: `app/page.jsx`
 - LLM API route / LLM 後端 API: `app/api/interpret/route.js`
 - Static browser assets / 前端靜態資源: `public/styles.css`, `public/script.js`
 
-Set these environment variables in Vercel Project Settings before using the real model chain:  
+Set these environment variables in Vercel Project Settings before using the real model chain:
 若要使用真實模型鏈，請在 Vercel Project Settings 設定環境變數：
 
 ```text
@@ -186,18 +186,18 @@ OPENROUTER_GROK_MODEL=x-ai/grok-4.3
 OPENAI_MODEL=gpt-4.1-mini
 ```
 
-The LLM route uses this fallback order: OpenRouter free route, OpenRouter Grok route, OpenAI, then deterministic fallback.  
+The LLM route uses this fallback order: OpenRouter free route, OpenRouter Grok route, OpenAI, then deterministic fallback.
 LLM route 的備援順序是：OpenRouter 免費路由、OpenRouter Grok 路由、OpenAI，最後才是固定規則解析。
 
-If all LLM providers are missing or unavailable, `/api/interpret` returns a deterministic fallback intent so the demo remains usable.  
+If all LLM providers are missing or unavailable, `/api/interpret` returns a deterministic fallback intent so the demo remains usable.
 如果所有 LLM provider 都沒有設定或暫時不可用，`/api/interpret` 會回傳後備解析結果，demo 仍可操作。
 
 ## Current implementation note / 目前實作說明
 
-This first version is intentionally implemented as a deployable static prototype so the interaction model can be reviewed quickly.  
+This first version is intentionally implemented as a deployable static prototype so the interaction model can be reviewed quickly.
 第一版刻意先做成可部署的靜態 prototype，目的是快速驗證互動流程與展示敘事。
 
-The next engineering step is to replace the current in-browser scenario logic with:  
+The next engineering step is to replace the current in-browser scenario logic with:
 下一步工程化方向，是將目前寫在瀏覽器中的情境邏輯逐步替換為：
 
 1. A hosted intent parsing API / 雲端自然語言任務解析 API
