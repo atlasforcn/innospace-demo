@@ -907,6 +907,10 @@ select {
 
 .map-target {
   position: absolute;
+  top: var(--aoi-y, 50%);
+  left: var(--aoi-x, 50%);
+  width: var(--aoi-width, clamp(132px, 18%, 240px));
+  height: var(--aoi-height, clamp(76px, 12%, 140px));
   z-index: 4;
   display: grid;
   place-items: center;
@@ -915,6 +919,11 @@ select {
   border: 2px solid rgba(255, 238, 210, 0.6);
   font-weight: 800;
   transform: translate(-50%, -50%);
+  transition: width 180ms ease, height 180ms ease, left 180ms ease, top 180ms ease, opacity 180ms ease;
+}
+
+.map-target.out-of-view {
+  opacity: 0.34;
 }
 
 .map-navigation-controls {
@@ -963,18 +972,14 @@ select {
 }
 
 .wildfire-target {
-  top: 50%;
-  left: 48%;
-  width: clamp(132px, 18%, 240px);
-  height: clamp(76px, 12%, 140px);
+  --aoi-width: clamp(132px, 18%, 260px);
+  --aoi-height: clamp(76px, 12%, 150px);
   border-radius: 42% 58% 52% 48% / 52% 40% 60% 48%;
 }
 
 .construction-target {
-  top: 50%;
-  left: 50%;
-  width: clamp(96px, 12%, 150px);
-  height: clamp(72px, 11%, 120px);
+  --aoi-width: clamp(96px, 12%, 170px);
+  --aoi-height: clamp(72px, 11%, 130px);
   border-radius: 8px;
 }
 

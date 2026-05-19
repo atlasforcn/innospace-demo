@@ -607,6 +607,18 @@ function baseMapViewForKey(viewKey) {
     };
   }
 
+  if (viewKey === "construction" && activeResolvedTarget?.scenario === "construction" && hasTargetCoordinates(activeResolvedTarget)) {
+    const label = cleanDisplayText(activeResolvedTarget.label || activeResolvedTarget.query, "construction AOI");
+    return {
+      ...mapLiveViews.construction,
+      center: [Number(activeResolvedTarget.location.lat), Number(activeResolvedTarget.location.lng)],
+      googleStatus: `Google Maps: ${label} / Google 地圖：工地 AOI`,
+      freeStatus: `Free map: ${label} / 免費地圖：工地 AOI`,
+      dynamic: true,
+      markerLabel: "C"
+    };
+  }
+
   if (viewKey === "custom" && hasTargetCoordinates()) {
     const label = cleanDisplayText(activeCustomTarget.label || activeCustomTarget.query);
     const isHazard = activeCustomTarget.need?.type === "hazard_response";
@@ -714,6 +726,7 @@ function setMapBackground(url, status, position = "center") {
   missionMap.style.setProperty("--map-size", selectedMapImageSource === "simple" ? simpleMapBackgroundSize() : "cover");
   mapImageStatus.textContent = status;
   syncMapScaleBadge();
+  syncAoiOverlay();
 }
 
 function applySimpleScenarioMap(scenarioKey = activeScenario, statusPrefix = "") {
@@ -812,6 +825,84 @@ function worldPixelsToLatLng(x, y, zoom) {
   return [Math.max(-85, Math.min(85, lat)), ((lng + 540) % 360) - 180];
 }
 
+function activeAoiGeometry() {
+  if (activeScenario === "custom" && hasTargetCoordinates(activeCustomTarget)) {
+    const isHazard = activeCustomTarget.need?.type === "hazard_response";
+    return {
+      center: [Number(activeCustomTarget.location.lat), Number(activeCustomTarget.location.lng)],
+      widthM: isHazard ? 16000 : 1800,
+      heightM: isHazard ? 10000 : 1200,
+      minWidth: isHazard ? 96 : 64,
+      maxWidth: isHazard ? 460 : 260,
+      minHeight: isHazard ? 68 : 48,
+      maxHeight: isHazard ? 300 : 190
+    };
+  }
+
+  if (activeScenario === "construction") {
+    const center =
+      activeResolvedTarget?.scenario === "construction" && hasTargetCoordinates(activeResolvedTarget)
+        ? [Number(activeResolvedTarget.location.lat), Number(activeResolvedTarget.location.lng)]
+        : mapLiveViews.construction.center;
+    return {
+      center,
+      widthM: 260,
+      heightM: 170,
+      minWidth: 70,
+      maxWidth: 360,
+      minHeight: 52,
+      maxHeight: 260
+    };
+  }
+
+  const center =
+    activeResolvedTarget?.scenario === "wildfire" && hasTargetCoordinates(activeResolvedTarget)
+      ? [Number(activeResolvedTarget.location.lat), Number(activeResolvedTarget.location.lng)]
+      : mapLiveViews.wildfire.center;
+  return {
+    center,
+    widthM: 210000,
+    heightM: 105000,
+    minWidth: 90,
+    maxWidth: 520,
+    minHeight: 58,
+    maxHeight: 320
+  };
+}
+
+function metersPerPixelAt(lat, zoom) {
+  return (156543.03392 * Math.cos((Number(lat) * Math.PI) / 180)) / 2 ** zoom;
+}
+
+function clampPixelSize(value, min, max) {
+  return Math.round(Math.max(min, Math.min(max, value)));
+}
+
+function syncAoiOverlay() {
+  if (!mapTarget || mapTarget.classList.contains("hidden")) return;
+
+  const view = mapViewForKey(activeMapViewKey());
+  const geometry = activeAoiGeometry();
+  const [targetLat, targetLng] = geometry.center;
+  const [viewLat, viewLng] = view.center;
+  const targetWorld = latLngToWorldPixels(targetLat, targetLng, view.zoom);
+  const viewWorld = latLngToWorldPixels(viewLat, viewLng, view.zoom);
+  const mapWidth = missionMap.clientWidth || 900;
+  const mapHeight = missionMap.clientHeight || 520;
+  const x = mapWidth / 2 + (targetWorld.x - viewWorld.x);
+  const y = mapHeight / 2 + (targetWorld.y - viewWorld.y);
+  const metersPerPixel = metersPerPixelAt(targetLat, view.zoom);
+  const width = clampPixelSize(geometry.widthM / metersPerPixel, geometry.minWidth, geometry.maxWidth);
+  const height = clampPixelSize(geometry.heightM / metersPerPixel, geometry.minHeight, geometry.maxHeight);
+  const outside = x < -width || x > mapWidth + width || y < -height || y > mapHeight + height;
+
+  mapTarget.style.setProperty("--aoi-x", `${Math.round(x)}px`);
+  mapTarget.style.setProperty("--aoi-y", `${Math.round(y)}px`);
+  mapTarget.style.setProperty("--aoi-width", `${width}px`);
+  mapTarget.style.setProperty("--aoi-height", `${height}px`);
+  mapTarget.classList.toggle("out-of-view", outside);
+}
+
 function clearOsmTileLayer() {
   missionMap.querySelector(".osm-tile-layer")?.remove();
 }
@@ -860,6 +951,7 @@ function renderOsmTileLayer(viewKey) {
   osmMapFrame.removeAttribute("src");
   missionMap.prepend(layer);
   syncMapScaleBadge();
+  syncAoiOverlay();
 }
 
 async function tryFreeMapProvider({ token, viewKey, status, loadingStatus }) {
@@ -975,11 +1067,13 @@ function changeMapZoom(delta) {
   const viewKey = activeMapViewKey();
   const view = mapViewForKey(viewKey);
   setMapViewOverride(viewKey, { center: view.center, zoom: view.zoom + delta });
+  syncAoiOverlay();
   updateMapImageFromCurrentState();
 }
 
 function resetCurrentMapView() {
   resetMapViewOverride(activeMapViewKey());
+  syncAoiOverlay();
   updateMapImageFromCurrentState();
 }
 
@@ -991,6 +1085,7 @@ function panMapByPixels(deltaX, deltaY) {
   const world = latLngToWorldPixels(lat, lng, view.zoom);
   const nextCenter = worldPixelsToLatLng(world.x - deltaX, world.y - deltaY, view.zoom);
   setMapViewOverride(viewKey, { center: nextCenter, zoom: view.zoom });
+  syncAoiOverlay();
   updateMapImageFromCurrentState();
 }
 
@@ -2381,6 +2476,7 @@ function renderWildfire(target = null) {
   activeCommandPacket = commandWithResolvedTarget(scenario.command, activeResolvedTarget, "WF-AOI-001");
   updateWorkflowProgress("planned");
   planStatus.textContent = "Validated recommendation ready / 已產出可審核建議";
+  syncAoiOverlay();
 }
 
 function renderConstruction(resolved) {
@@ -2405,6 +2501,7 @@ function renderConstruction(resolved) {
     );
     mapCaption.textContent = "Construction site AOI resolved and ready for recurring monitoring. / 工地 AOI 已解析，可進入週期性監測。";
     mapBadge.textContent = "AOI resolved / 區域已解析";
+    syncAoiOverlay();
   } else {
     mapTarget.className = "map-target construction-target";
     mapTarget.innerHTML = "<span>?</span>";
@@ -2413,6 +2510,7 @@ function renderConstruction(resolved) {
     clarificationBox.innerHTML = "<strong>Clarification required / 需要補充資訊。</strong><p>\"This site\" cannot be converted into GPS coordinates or an AOI. Please provide an address, coordinates, or define the site on the map. / 這個描述無法直接轉成 GPS 或 AOI，請補充地址、座標，或在地圖上框選。</p>";
     mapCaption.textContent = "Planning is paused until the construction site is geolocated. / 在工地位置被解析前，系統暫停往下規劃。";
     mapBadge.textContent = "Target unresolved / 目標未解析";
+    syncAoiOverlay();
   }
 
   renderDefinitionList(resolved ? scenario.resolvedIntent : scenario.unresolvedIntent);
@@ -2440,7 +2538,7 @@ function renderConstruction(resolved) {
 
   if (resolved) {
     renderRecommendedAsset(scenario.recommendedAsset);
-    activeCommandPacket = scenario.command;
+    activeCommandPacket = commandWithResolvedTarget(scenario.command, activeResolvedTarget, "CM-AOI-014");
     updateWorkflowProgress("planned");
   } else {
     recommendedAsset.className = "recommended-asset empty-plan";
@@ -2522,6 +2620,7 @@ function renderCustomScenario(llmResult = null, target = null) {
   planStatus.textContent = customPlan.executable
     ? "Custom off-nadir plan ready / 自訂斜視計畫可供審核"
     : "Custom constellation has no safe executable imaging asset / 自訂星系無安全可執行拍攝資產";
+  syncAoiOverlay();
 }
 
 async function requestLlmIntent() {
@@ -2635,6 +2734,7 @@ async function analyzeMission() {
 
       if (geocodeResult?.result?.location) {
         constructionResolved = true;
+        activeResolvedTarget = buildResolvedTarget(missionPrompt.value, geocodeResult, llmResult, "construction");
         renderConstruction(true);
         clarificationBox.className = "clarification-box ready";
         clarificationBox.innerHTML =
@@ -2664,6 +2764,7 @@ async function analyzeMission() {
 
 function resolveConstructionTarget(mode, geocodeResult = null) {
   constructionResolved = true;
+  activeResolvedTarget = buildResolvedTarget(addressInput.value || missionPrompt.value, geocodeResult, null, "construction");
   const geocodeNote =
     geocodeResult?.source === "google" && geocodeResult.result?.location
       ? ` Google Maps resolved it to ${geocodeResult.result.formatted_address} (${geocodeResult.result.location.lat.toFixed(4)}, ${geocodeResult.result.location.lng.toFixed(4)}).`
@@ -2726,6 +2827,7 @@ missionMap.addEventListener("pointermove", updateMapDrag);
 missionMap.addEventListener("pointerup", endMapDrag);
 missionMap.addEventListener("pointercancel", endMapDrag);
 missionMap.addEventListener("wheel", zoomMapFromWheel, { passive: false });
+window.addEventListener("resize", syncAoiOverlay);
 
 mapImageUpload.addEventListener("change", () => {
   const [file] = mapImageUpload.files;
