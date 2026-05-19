@@ -1615,6 +1615,22 @@ function buildResolvedTarget(prompt, geocodeResult, llmResult = null, scenarioKe
   return target;
 }
 
+function mapDefinedConstructionTarget() {
+  const view = mapViewForKey("construction");
+  const [lat, lng] = view.center;
+  const target = {
+    status: "resolved",
+    scenario: "construction",
+    label: "Map-defined construction AOI",
+    query: "map-defined AOI",
+    source: "map",
+    location: { lat, lng },
+    need: inferCustomObservationNeed(missionPrompt.value)
+  };
+  target.ref = targetRefFromTarget(target);
+  return target;
+}
+
 function commandWithResolvedTarget(command, target, fallbackRef = "TARGET-AOI") {
   if (!command || !hasTargetCoordinates(target)) return command;
   const packet = JSON.parse(JSON.stringify(command));
@@ -2735,6 +2751,7 @@ async function analyzeMission() {
       if (geocodeResult?.result?.location) {
         constructionResolved = true;
         activeResolvedTarget = buildResolvedTarget(missionPrompt.value, geocodeResult, llmResult, "construction");
+        resetMapViewOverride("construction");
         renderConstruction(true);
         clarificationBox.className = "clarification-box ready";
         clarificationBox.innerHTML =
@@ -2764,7 +2781,10 @@ async function analyzeMission() {
 
 function resolveConstructionTarget(mode, geocodeResult = null) {
   constructionResolved = true;
-  activeResolvedTarget = buildResolvedTarget(addressInput.value || missionPrompt.value, geocodeResult, null, "construction");
+  activeResolvedTarget =
+    buildResolvedTarget(addressInput.value || missionPrompt.value, geocodeResult, null, "construction") ||
+    mapDefinedConstructionTarget();
+  resetMapViewOverride("construction");
   const geocodeNote =
     geocodeResult?.source === "google" && geocodeResult.result?.location
       ? ` Google Maps resolved it to ${geocodeResult.result.formatted_address} (${geocodeResult.result.location.lat.toFixed(4)}, ${geocodeResult.result.location.lng.toFixed(4)}).`
@@ -2774,18 +2794,15 @@ function resolveConstructionTarget(mode, geocodeResult = null) {
       ? ` Google Maps 已解析為 ${geocodeResult.result.formatted_address}（${geocodeResult.result.location.lat.toFixed(4)}, ${geocodeResult.result.location.lng.toFixed(4)}）。`
       : "";
 
+  renderConstruction(true);
   clarificationBox.className = "clarification-box ready";
   clarificationBox.innerHTML =
     mode === "address"
       ? `<strong>Target resolved / 目標已解析。</strong><p>The provided address has been converted into a geolocated construction AOI.${geocodeNote} The recurring imaging planner can continue. / 地址已轉為可定位的工地 AOI。${geocodeNoteZh}系統可以繼續建立週期性拍攝計畫。</p>`
       : "<strong>AOI accepted / AOI 已接受。</strong><p>The map-defined construction boundary has been converted into a target geometry. The recurring imaging planner can continue. / 地圖框選的工地邊界已轉為目標幾何，系統可以繼續規劃。</p>";
-  mapCaption.textContent = "Construction site AOI resolved and ready for recurring monitoring. / 工地 AOI 已解析，可進入週期性監測。";
-  mapBadge.className = "pill";
-  mapBadge.textContent = "AOI resolved / 區域已解析";
-  mapTarget.className = "map-target construction-target";
-  mapTarget.innerHTML = "<span>AOI</span>";
   aoiHint.classList.add("hidden");
-  analyzeMission();
+  approveButton.disabled = !activeCommandPacket;
+  updatePresentationStep();
 }
 
 function approveMission() {
