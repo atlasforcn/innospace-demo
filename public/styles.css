@@ -1587,6 +1587,321 @@ select {
   }
 }
 
+/* Intent-to-command presentation consolidation */
+.presentation-toolbar {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: stretch;
+}
+
+.presentation-step-summary {
+  gap: 14px;
+}
+
+.summary-mainline {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.toolbar-workflow-state {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid rgba(199, 216, 228, 0.14);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.toolbar-workflow-state p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.operator-progress {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.operator-progress .flow-section-label {
+  display: none;
+}
+
+.operator-progress .progress-step {
+  min-height: 78px;
+  padding: 10px;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 7px 9px;
+}
+
+.operator-progress .progress-step strong {
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.operator-progress .progress-step small {
+  display: none;
+}
+
+.guided-task-list.compact {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  border-radius: var(--radius);
+  border: 1px solid rgba(199, 216, 228, 0.14);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.guided-task-list.compact .guided-task {
+  min-height: 72px;
+  padding: 10px;
+}
+
+.guided-task-list.compact .guided-task p {
+  display: none;
+}
+
+.guided-task-list.compact .guided-task strong {
+  font-size: 12px;
+}
+
+.presentation-mode .workspace-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.presentation-mode .workflow-rail {
+  display: none;
+}
+
+.presentation-mode .panel.active-step {
+  grid-column: 1;
+}
+
+.dashboard-mode .operator-progress {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.dashboard-mode .guided-task-list.compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.analysis-progress {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid rgba(53, 208, 178, 0.32);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(90deg, rgba(53, 208, 178, 0.12), rgba(118, 184, 255, 0.05)),
+    rgba(255, 255, 255, 0.035);
+}
+
+.analysis-progress.hidden {
+  display: none;
+}
+
+.analysis-progress-header {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.analysis-spinner {
+  width: 18px;
+  height: 18px;
+  border: 3px solid rgba(255, 255, 255, 0.18);
+  border-top-color: var(--accent);
+  border-radius: 999px;
+  animation: analysisSpin 880ms linear infinite;
+}
+
+.analysis-progress.complete .analysis-spinner,
+.analysis-progress.failed .analysis-spinner {
+  animation: none;
+  border-color: var(--accent);
+}
+
+.analysis-progress.failed {
+  border-color: rgba(255, 112, 95, 0.45);
+  background:
+    linear-gradient(90deg, rgba(255, 112, 95, 0.12), rgba(243, 179, 75, 0.05)),
+    rgba(255, 255, 255, 0.035);
+}
+
+@keyframes analysisSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.analysis-meter {
+  overflow: hidden;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.analysis-meter span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), var(--blue));
+  transition: width 220ms ease;
+}
+
+.analysis-progress.failed .analysis-meter span {
+  background: linear-gradient(90deg, var(--danger), var(--accent-2));
+}
+
+.analysis-stage-list {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.analysis-stage-list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 7px;
+  align-items: center;
+  min-height: 50px;
+  padding: 9px;
+  border: 1px solid rgba(199, 216, 228, 0.12);
+  border-radius: var(--radius);
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.analysis-stage-list li span {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.analysis-stage-list li strong {
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.analysis-stage-list li.active,
+.analysis-stage-list li.done {
+  color: var(--text);
+  border-color: rgba(53, 208, 178, 0.28);
+}
+
+.analysis-stage-list li.done span {
+  color: #03120f;
+  background: var(--accent);
+}
+
+.analysis-stage-list li.failed {
+  border-color: rgba(255, 112, 95, 0.42);
+}
+
+.analysis-stage-list li.failed span {
+  color: #220904;
+  background: var(--danger);
+}
+
+.suitability-details {
+  margin-top: 18px;
+  border: 1px solid rgba(199, 216, 228, 0.16);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.suitability-details summary {
+  cursor: pointer;
+  padding: 14px 16px;
+  color: var(--text);
+  font-weight: 800;
+}
+
+.suitability-details .suitability-grid {
+  padding: 0 16px 16px;
+}
+
+.command-detail {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+}
+
+.command-detail code {
+  width: fit-content;
+  max-width: 100%;
+  padding: 5px 8px;
+  border: 1px solid rgba(53, 208, 178, 0.22);
+  border-radius: 6px;
+  color: #dffcf5;
+  background: rgba(53, 208, 178, 0.09);
+  overflow-wrap: anywhere;
+}
+
+.command-detail dl {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.command-detail dl div {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.24fr) minmax(0, 1fr);
+  gap: 10px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(199, 216, 228, 0.09);
+}
+
+.command-detail dt {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.command-detail dd {
+  margin: 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 1280px) {
+  .operator-progress,
+  .analysis-stage-list {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .guided-task-list.compact {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .presentation-toolbar,
+  .summary-mainline,
+  .toolbar-workflow-state,
+  .command-detail dl div {
+    grid-template-columns: 1fr;
+  }
+
+  .operator-progress,
+  .analysis-stage-list,
+  .guided-task-list.compact {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Mission control visual refresh */
 :root {
   --bg: #05090f;
@@ -2309,4 +2624,32 @@ select:focus {
   .guided-task-list.compact {
     grid-template-columns: 1fr;
   }
+}
+
+/* Final layout authority: flow lives in the top strip, not the side rail. */
+.presentation-toolbar {
+  display: grid;
+}
+
+.presentation-mode .workspace-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.presentation-mode .workflow-rail {
+  display: none;
+}
+
+.presentation-mode .panel.active-step {
+  grid-column: 1;
+}
+
+.dashboard-mode .workspace-grid {
+  grid-template-columns: minmax(260px, 0.62fr) minmax(360px, 0.92fr) minmax(520px, 1.46fr);
+}
+
+.dashboard-mode .workflow-rail {
+  display: grid;
+  position: relative;
+  max-height: none;
+  overflow: visible;
 }

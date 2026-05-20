@@ -9,6 +9,11 @@ const corsHeaders = {
   "access-control-allow-headers": "Content-Type"
 };
 
+const SATELLITE_KNOWLEDGE_RELATIVE_PATH = path.join("docs", "satellite-operation-constraints.md");
+const SATELLITE_KNOWLEDGE_MAX_CHARS = 28000;
+
+let satelliteKnowledgeCache = null;
+
 function json(data, init = {}) {
   return Response.json(data, {
     ...init,
@@ -17,6 +22,22 @@ function json(data, init = {}) {
       ...(init.headers || {})
     }
   });
+}
+
+async function loadSatelliteMissionKnowledge() {
+  if (satelliteKnowledgeCache !== null) return satelliteKnowledgeCache;
+
+  try {
+    const knowledgePath = path.join(process.cwd(), SATELLITE_KNOWLEDGE_RELATIVE_PATH);
+    const content = await fs.readFile(knowledgePath, "utf8");
+    satelliteKnowledgeCache = content.length > SATELLITE_KNOWLEDGE_MAX_CHARS
+      ? content.slice(0, SATELLITE_KNOWLEDGE_MAX_CHARS) + "\n\n[Reference truncated for prompt budget.]"
+      : content;
+  } catch (error) {
+    satelliteKnowledgeCache = "";
+  }
+
+  return satelliteKnowledgeCache;
 }
 
 export function OPTIONS() {
@@ -40,24 +61,38 @@ function fallbackIntent(prompt) {
   const isConstruction = lower.includes("construction") || lower.includes("site") || /施工|工地/.test(raw);
   const isWildfire = lower.includes("wildfire") || lower.includes("fire") || /森林大火|山火|火災/.test(raw);
   const isLandslide = lower.includes("landslide") || lower.includes("debris") || lower.includes("mudslide") || /土石流|山崩/.test(raw);
+  const isMaritime = lower.includes("maritime") || lower.includes("ship") || lower.includes("vessel") || lower.includes("ais") || /船舶|海事|港口|漁船/.test(raw);
+  const isComms = lower.includes("communications") || lower.includes("communication") || lower.includes("relay") || lower.includes("downlink") || lower.includes("iot") || /通訊|中繼|下傳|物聯網/.test(raw);
   const isCustomDrill = lower.includes("custom") || lower.includes("slew") || lower.includes("off-nadir") || lower.includes("washington");
   const needsClarification = isConstruction && lower.includes("this site");
   const targetLabel = fallbackTargetLabel(raw, { isCustomDrill, isWildfire, isConstruction, isLandslide });
   const hasCandidateTarget = isWildfire || isCustomDrill || isLandslide || /alishan|阿里山|taiwan|台灣|臺灣/i.test(raw);
+  const missionCategory = isComms
+    ? "communications_relay_request"
+    : isMaritime
+      ? "maritime_monitoring"
+      : isCustomDrill
+        ? "custom_off_nadir_imaging_drill"
+        : isConstruction
+          ? "recurring_site_monitoring"
+          : isWildfire || isLandslide
+            ? "urgent_disaster_response"
+            : "change_detection";
+  const payloadFamily = isComms ? "communications_relay" : isMaritime ? "sar" : "optical";
 
   return {
-    mission_category: isCustomDrill ? "custom_off_nadir_imaging_drill" : isConstruction ? "recurring_site_monitoring" : isWildfire || isLandslide ? "urgent_disaster_response" : "change_detection",
-    priority: isWildfire || isCustomDrill || isLandslide ? "high" : "routine",
+    mission_category: missionCategory,
+    priority: isWildfire || isCustomDrill || isLandslide || isMaritime ? "high" : "routine",
     target_resolution: {
       status: needsClarification ? "needs_clarification" : hasCandidateTarget ? "candidate" : "needs_clarification",
       label: targetLabel,
       geometry: isWildfire || isLandslide ? "regional_area" : "point"
     },
     observation_request: {
-      payload_family: "optical",
-      gsd_target_m: isWildfire || isLandslide ? 3 : 1,
+      payload_family: payloadFamily,
+      gsd_target_m: isComms ? null : isMaritime ? 10 : isWildfire || isLandslide ? 3 : 1,
       cadence: isConstruction ? "daily" : "once",
-      delivery_latency: isWildfire || isLandslide ? "rapid" : "best_effort"
+      delivery_latency: isWildfire || isLandslide || isMaritime ? "rapid" : "best_effort"
     },
     constraints: {
       preserve_existing_missions: true,
@@ -70,6 +105,34 @@ function fallbackIntent(prompt) {
       ? ["Please provide an address, coordinates, or draw an AOI for the construction site."]
       : []
   };
+}
+
+function normalizePayloadFamily(value, fallbackValue) {
+  const payloadFamilies = new Set(["optical", "multispectral", "thermal_ir", "sar", "communications_relay"]);
+  const normalized = String(value || "").toLowerCase().trim();
+  const aliases = {
+    vhr_optical: "optical",
+    panchromatic: "optical",
+    rgb: "optical",
+    electro_optical: "optical",
+    eo: "optical",
+    hyperspectral: "multispectral",
+    thermal: "thermal_ir",
+    infrared: "thermal_ir",
+    radar: "sar",
+    insar: "sar",
+    ais: "sar",
+    adsb: "communications_relay",
+    rf_monitor: "communications_relay",
+    communications: "communications_relay",
+    comms: "communications_relay",
+    relay: "communications_relay",
+    pnt: "communications_relay",
+    gnss: "communications_relay"
+  };
+
+  if (payloadFamilies.has(normalized)) return normalized;
+  return aliases[normalized] || fallbackValue;
 }
 
 function extractOutputText(responseJson) {
@@ -99,11 +162,17 @@ function parseJsonObject(text) {
 
 function normalizeIntent(intent, prompt) {
   const fallback = fallbackIntent(prompt);
-  const missionCategories = new Set(["custom_off_nadir_imaging_drill", "recurring_site_monitoring", "urgent_disaster_response", "change_detection"]);
+  const missionCategories = new Set([
+    "custom_off_nadir_imaging_drill",
+    "recurring_site_monitoring",
+    "urgent_disaster_response",
+    "change_detection",
+    "maritime_monitoring",
+    "communications_relay_request"
+  ]);
   const priorities = new Set(["routine", "elevated", "high", "critical"]);
   const targetStatuses = new Set(["resolved", "candidate", "needs_clarification"]);
   const geometries = new Set(["point", "bbox", "polygon", "regional_area"]);
-  const payloadFamilies = new Set(["optical", "multispectral", "thermal_ir", "sar", "communications_relay"]);
   const cadences = new Set(["once", "daily", "weekly", null]);
   const deliveryLatencies = new Set(["best_effort", "rapid", "near_real_time", null]);
 
@@ -139,7 +208,7 @@ function normalizeIntent(intent, prompt) {
     },
     observation_request: {
       ...observationRequest,
-      payload_family: payloadFamilies.has(observationRequest.payload_family) ? observationRequest.payload_family : fallback.observation_request.payload_family,
+      payload_family: normalizePayloadFamily(observationRequest.payload_family, fallback.observation_request.payload_family),
       cadence: cadences.has(observationRequest.cadence) ? observationRequest.cadence : fallback.observation_request.cadence,
       delivery_latency: deliveryLatencies.has(observationRequest.delivery_latency) ? observationRequest.delivery_latency : fallback.observation_request.delivery_latency
     },
@@ -154,13 +223,30 @@ function normalizeIntent(intent, prompt) {
   };
 }
 
-const missionIntentSystem =
-  "Convert EO mission requests into MissionIntent JSON only. If target location is ambiguous, set target_resolution.status to needs_clarification and ask precise clarification questions. Never invent spacecraft commands. The JSON object must include mission_category, priority, target_resolution, observation_request, constraints, operator_gate, and clarification_questions.";
+function buildMissionIntentSystem(satelliteKnowledge) {
+  const referenceBlock = satelliteKnowledge
+    ? `\n\nSatellite mission reference loaded from ${SATELLITE_KNOWLEDGE_RELATIVE_PATH}:\n\n${satelliteKnowledge}`
+    : "";
+
+  return [
+    "Convert satellite mission requests into MissionIntent JSON only.",
+    "Use the satellite mission reference to choose payload_family, GSD target, cadence, latency, and constraints.",
+    "Stay within the MissionIntent schema. Use only these payload_family values: optical, multispectral, thermal_ir, sar, communications_relay.",
+    "For maritime monitoring, generally prefer sar for wide-area or all-weather detection, optical for requested visual detail, and communications_relay only for AIS/RF/relay-only requests.",
+    "For communications, relay, IoT, PNT, AIS-only, ADS-B-only, or RF-monitoring requests, use communications_relay and set gsd_target_m to null unless an imaging product is also requested.",
+    "For wildfire or urgent disaster response, choose optical/multispectral/SAR/thermal_ir according to cloud, daylight, smoke, heat, and speed constraints; do not assume high-resolution optical works through cloud.",
+    "If target location is ambiguous, set target_resolution.status to needs_clarification and ask precise clarification questions.",
+    "Never invent spacecraft commands, final satellite selection, or flight-certified telecommands.",
+    "The JSON object must include mission_category, priority, target_resolution, observation_request, constraints, operator_gate, and clarification_questions.",
+    referenceBlock
+  ].join(" ");
+}
 
 async function callOpenRouter(prompt, options = {}) {
   const apiKey = options.apiKey || process.env.OPENROUTER_API_KEY;
   if (!apiKey) return null;
   const model = options.model || process.env.OPENROUTER_MODEL || "openrouter/free";
+  const missionIntentSystem = await buildMissionIntentSystem(await loadSatelliteMissionKnowledge());
   const requestBody = {
     model,
     messages: [
@@ -199,6 +285,7 @@ async function callOpenRouter(prompt, options = {}) {
 
 async function callOpenAI(prompt, schema) {
   if (!process.env.OPENAI_API_KEY) return null;
+  const missionIntentSystem = await buildMissionIntentSystem(await loadSatelliteMissionKnowledge());
 
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -241,6 +328,7 @@ export async function POST(request) {
   const requestedProvider = ["auto", "openrouter", "grok", "openai"].includes(provider) ? provider : "auto";
   const schemaPath = path.join(process.cwd(), "schemas", "mission-intent.schema.json");
   const schema = JSON.parse(await fs.readFile(schemaPath, "utf8"));
+  await loadSatelliteMissionKnowledge();
   const providerErrors = [];
 
   if (requestedProvider === "auto" || requestedProvider === "openrouter") {
@@ -251,7 +339,7 @@ export async function POST(request) {
         responseFormat: false
       });
       if (openRouterIntent) {
-        return json({ source: "openrouter", intent: openRouterIntent });
+        return json({ source: "openrouter", intent: openRouterIntent, knowledge_base: SATELLITE_KNOWLEDGE_RELATIVE_PATH });
       }
     } catch (error) {
       providerErrors.push({ source: "openrouter", message: error.message });
@@ -265,7 +353,7 @@ export async function POST(request) {
         model: process.env.OPENROUTER_GROK_MODEL || "x-ai/grok-4.3"
       });
       if (grokIntent) {
-        return json({ source: "openrouter_grok", intent: grokIntent });
+        return json({ source: "openrouter_grok", intent: grokIntent, knowledge_base: SATELLITE_KNOWLEDGE_RELATIVE_PATH });
       }
     } catch (error) {
       providerErrors.push({ source: "openrouter_grok", message: error.message });
@@ -276,7 +364,7 @@ export async function POST(request) {
     try {
       const openAiIntent = await callOpenAI(prompt, schema);
       if (openAiIntent) {
-        return json({ source: "openai", intent: openAiIntent });
+        return json({ source: "openai", intent: openAiIntent, knowledge_base: SATELLITE_KNOWLEDGE_RELATIVE_PATH });
       }
     } catch (error) {
       providerErrors.push({ source: "openai", message: error.message });
@@ -284,11 +372,10 @@ export async function POST(request) {
   }
 
   return json({
-    source: "fallback",
-    warning: providerErrors.length
-      ? "Configured LLM provider failed. Returning deterministic fallback intent."
-      : "No LLM provider API key is configured. Returning deterministic fallback intent.",
+    error: providerErrors.length
+      ? "Configured LLM providers failed. No deterministic mission intent was returned."
+      : "No LLM provider API key is configured. No deterministic mission intent was returned.",
     provider_errors: providerErrors,
-    intent: fallbackIntent(prompt)
-  });
+    deterministic_fallback_allowed: false
+  }, { status: 503 });
 }

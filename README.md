@@ -1,4 +1,4 @@
-# Mission Abstraction Layer Demo / 任務抽象層展示系統
+# Intent-to-Command Mission Demo / 語意轉具體指令任務展示
 
 This prototype is a browser-ready competition demo for an operator-supervised EO mission orchestration concept.
 這是一個可直接於瀏覽器展示的競賽 demo，用來呈現「操作員監督式」地球觀測任務編排概念。
@@ -33,7 +33,8 @@ It is designed to show both future product value and practical mission feasibili
 
 - Guided demo flow / 導覽式展示流程
   - Initial blank analysis state before any request is processed / 初始進站時維持空白分析狀態
-  - Results appear only after the operator clicks `Analyze Request` / 只有按下 `Analyze Request` 後才顯示系統分析結果
+  - Results appear only after the operator triggers analysis from `Analyze Request` or the first-step `Next` button / 只有操作員按下 `Analyze Request` 或第一步的 `Next` 觸發分析後才顯示系統分析結果
+  - LLM analysis shows progress stages instead of silently jumping to a preset answer / LLM 分析會顯示階段進度，不會偷偷跳到預設答案
   - Mission cards unlock through one state machine: `idle`, `blocked`, `planned`, `approved`, `exported` / 任務卡片依照同一套狀態機解鎖：`idle`、`blocked`、`planned`、`approved`、`exported`
   - Fleet sandbox and map display are setup cards, not spacecraft tasking steps / 星系沙盒與地圖顯示屬於展示設定，不算衛星任務步驟
   - Mission approval is placed directly below the recommended plan / 批准任務按鈕直接放在建議任務計畫下方
@@ -56,12 +57,12 @@ Recommended walkthrough / 建議展示順序：
 
 1. Start with the wildfire preset and click `Analyze Request`
    先選擇森林大火情境，按下 `Analyze Request`
-2. Move through the unlocked mission cards: target gate, requirements, AOI/access, fleet readiness, feasibility rules, and candidate decision
-   依序查看已解鎖的任務卡片：目標檢核、任務需求、區域與可見性、衛星可用性、可行性規則與候選決策
+2. Move through the unlocked mission cards: target gate, intent-to-command translation, AOI/access, fleet readiness with fit details, and candidate decision
+   依序查看已解鎖的任務卡片：目標檢核、語意轉具體指令、區域與可見性、含適配細節的星系狀態與候選決策
 3. Review the recommended plan and the selected spacecraft
    查看建議任務計畫與最建議衛星
-4. Inspect the ADCS and camera commands under each step
-   檢視每一步底下拆分出的 ADCS 與攝影機指令
+4. Inspect the ADCS, camera, and data/ground commands under each step
+   檢視每一步底下拆分出的 ADCS、攝影機與資料/地面段指令
 5. Click `Approve Mission Plan`
    按下 `Approve Mission Plan`
 6. Review the revealed machine command packet
@@ -90,8 +91,8 @@ The demo uses a single tasking state machine so the interface cannot advance int
 - `approved`: operator approval unlocks the command packet / 操作員批准後解鎖指令封包
 - `exported`: command packet export is simulated for handoff / 模擬匯出指令封包以供展示交接
 
-The left flow is always visible. Mission cards are opened only when their state allows it; setup cards stay available for scenario testing.
-左側流程常駐顯示。任務卡片只有在狀態允許時才能開啟；展示設定卡片則保持可用，方便測試情境。
+The active flow is consolidated into the top mission strip. Mission cards open only when their state allows it; setup cards stay available for scenario testing.
+主要流程已整合到上方任務列。任務卡片只有在狀態允許時才能開啟；展示設定卡片則保持可用，方便測試情境。
 
 Preset wildfire and construction scenarios intentionally ignore the custom sandbox so they remain stable for presentation. The sandbox feeds only the Custom Fleet Drill scenario.
 森林大火與工地監測會刻意忽略自訂沙盒，確保展演時預設情境穩定；沙盒只會套用到自訂星系驗證情境。
@@ -112,6 +113,8 @@ The current demo now reflects a deeper satellite tasking model.
 Related files / 相關檔案：
 
 - `docs/research-brief.md`
+- `docs/satellite-operation-constraints.md`
+- `docs/satellite-mission-payload-gsd-constraints.md`
 - `docs/llm-integration-contract.md`
 - `schemas/mission-intent.schema.json`
 
@@ -168,6 +171,9 @@ The project has been upgraded to a Next.js app so Vercel can run a server-side A
 - LLM API route / LLM 後端 API: `app/api/interpret/route.js`
 - Static browser assets / 前端靜態資源: `public/styles.css`, `public/script.js`
 
+The LLM API route loads `docs/satellite-operation-constraints.md` into the server-side system prompt so the model can use the mission/payload/GSD/communications/ADCS reference while producing `MissionIntent` JSON.
+LLM 後端會把 `docs/satellite-operation-constraints.md` 載入 server-side system prompt，因此模型在輸出 `MissionIntent` JSON 時會讀到任務、酬載、GSD、通訊與姿態限制資料。
+
 Set these environment variables in Vercel Project Settings before using the real model chain:
 若要使用真實模型鏈，請在 Vercel Project Settings 設定環境變數：
 
@@ -186,11 +192,11 @@ OPENROUTER_GROK_MODEL=x-ai/grok-4.3
 OPENAI_MODEL=gpt-4.1-mini
 ```
 
-The LLM route uses this fallback order: OpenRouter free route, OpenRouter Grok route, OpenAI, then deterministic fallback.
-LLM route 的備援順序是：OpenRouter 免費路由、OpenRouter Grok 路由、OpenAI，最後才是固定規則解析。
+The LLM route uses this provider order: OpenRouter free route, OpenRouter Grok route, then OpenAI.
+LLM route 的供應商順序是：OpenRouter 免費路由、OpenRouter Grok 路由，最後是 OpenAI。
 
-If all LLM providers are missing or unavailable, `/api/interpret` returns a deterministic fallback intent so the demo remains usable.
-如果所有 LLM provider 都沒有設定或暫時不可用，`/api/interpret` 會回傳後備解析結果，demo 仍可操作。
+If all LLM providers are missing or unavailable, `/api/interpret` returns an error and the UI shows a retryable LLM failure state. It does not silently replace the core semantic step with deterministic parsing.
+如果所有 LLM provider 都沒有設定或暫時不可用，`/api/interpret` 會回傳錯誤，前端會顯示可重試的 LLM 失敗狀態，不會偷偷用固定規則取代核心語意解析。
 
 ## Current implementation note / 目前實作說明
 

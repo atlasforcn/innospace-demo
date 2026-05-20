@@ -21,20 +21,24 @@
           },
           "subsystem": {
             "type": "string",
-            "enum": ["ADCS", "PAYLOAD", "COMMS_DATA", "MISSION_CONTROL", "PROPULSION"]
+            "enum": ["ADCS", "CAMERA", "DATA_GROUND", "MISSION_CONTROL", "PROPULSION"]
           },
           "command": {
             "type": "string",
             "enum": [
-              "SET_TARGET_POINTING",
-              "HOLD_POINTING",
-              "RETURN_LVLH",
-              "POWER_ON_PAYLOAD",
-              "POWER_OFF_PAYLOAD",
-              "SELECT_PAYLOAD_MODE",
-              "TRIGGER_CAPTURE",
-              "RESERVE_STORAGE",
-              "QUEUE_DOWNLINK",
+              "ADCS_SET_MODE",
+              "ADCS_SLEW_TO_AOI",
+              "ADCS_TRACK_TARGET",
+              "ADCS_RETURN_LVLH",
+              "CAMERA_POWER_ON",
+              "CAMERA_CONFIGURE",
+              "CAMERA_CAPTURE",
+              "CAMERA_POWER_OFF",
+              "PAYLOAD_STORE_IMAGE",
+              "COMMS_SCHEDULE_DOWNLINK",
+              "COMMS_DOWNLINK_TO_STATION",
+              "COMMS_CONFIRM_RECEIPT",
+              "STORE_ONBOARD_AND_WAIT_NEXT_PASS",
               "REQUEST_CROSSLINK_RELAY",
               "MARK_OPERATOR_REVIEW",
               "REQUEST_MANEUVER_REVIEW"

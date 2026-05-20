@@ -1,6 +1,10 @@
 const scenarioButtons = document.querySelectorAll(".scenario-button");
 const missionPrompt = document.getElementById("missionPrompt");
 const analyzeButton = document.getElementById("analyzeButton");
+const analysisProgress = document.getElementById("analysisProgress");
+const analysisProgressLabel = document.getElementById("analysisProgressLabel");
+const analysisProgressFill = document.getElementById("analysisProgressFill");
+const analysisStageList = document.getElementById("analysisStageList");
 const approveButton = document.getElementById("approveButton");
 const clarificationBox = document.getElementById("clarificationBox");
 const constructionTools = document.getElementById("constructionTools");
@@ -58,7 +62,6 @@ const presentationPanelSelectors = [
   ".phase-interpret",
   ".mission-map-panel",
   ".constellation-panel",
-  ".suitability-panel",
   ".decision-panel",
   ".mission-plan-panel",
   ".command-panel",
@@ -82,6 +85,7 @@ let progressSteps = [];
 let activeCustomTarget = null;
 let activeResolvedTarget = null;
 let analysisInProgress = false;
+let analysisFailed = false;
 let mapDragState = null;
 let lastMapDragMoved = false;
 const mapViewOverrides = {};
@@ -105,8 +109,8 @@ const presentationSteps = [
     key: "clarify",
     phase: "03",
     group: "Mission Flow / 任務流程",
-    title: "Mission Requirements / 任務需求模型",
-    detail: "Translate intent into payload, cadence, urgency, and safety policy. / 將意圖轉成酬載、週期、急迫性與安全策略。"
+    title: "Intent-to-Command Translation / 語意轉具體指令",
+    detail: "Convert abstract human language into concrete mission requirements before any command is built. / 先把人類抽象語言轉成具體任務需求，再產生命令。"
   },
   {
     key: "plan",
@@ -117,17 +121,10 @@ const presentationSteps = [
   },
   {
     key: "plan",
-    phase: "05",
+    phase: "05/06",
     group: "Mission Flow / 任務流程",
-    title: "Fleet Readiness / 衛星可用性",
-    detail: "Check payload, battery, current attitude state, storage, and existing tasks. / 檢查酬載、電量、姿態狀態、儲存與既有任務。"
-  },
-  {
-    key: "plan",
-    phase: "06",
-    group: "Mission Flow / 任務流程",
-    title: "Feasibility Rules / 可行性規則",
-    detail: "Explain the planning constraints before showing a recommendation. / 在推薦前先說明任務規劃約束。"
+    title: "Fleet Status + Fit / 星系狀態與適配",
+    detail: "Check payload, battery, attitude state, storage, task conflicts, and the hidden suitability model. / 檢查酬載、電量、姿態、儲存、任務衝突與收合的適配模型。"
   },
   {
     key: "plan",
@@ -170,17 +167,25 @@ const workflowStepToPanel = {
   request: 0,
   clarify: 1,
   plan: 3,
-  approve: 7,
-  export: 8
+  approve: 6,
+  export: 7
 };
 
 const workflowProgressByState = {
   idle: { completeThrough: -1, availableThrough: 0 },
   blocked: { completeThrough: 0, availableThrough: 1, blockedIndex: 1 },
-  planned: { completeThrough: 6, availableThrough: 7 },
-  approved: { completeThrough: 7, availableThrough: 8 },
-  exported: { completeThrough: 8, availableThrough: 8 }
+  planned: { completeThrough: 5, availableThrough: 6 },
+  approved: { completeThrough: 6, availableThrough: 7 },
+  exported: { completeThrough: 7, availableThrough: 7 }
 };
+
+const analysisStages = [
+  "LLM semantic interpretation / LLM 語意解析",
+  "AOI and geocode check / AOI 與地理解析",
+  "Mission boundary validation / 任務邊界檢查",
+  "Fleet feasibility scoring / 星系可行性評估",
+  "Bounded command generation / 受控指令生成"
+];
 
 const mapImagePresets = {
   wildfire: {
@@ -535,6 +540,47 @@ function setPresentationMode(enabled) {
     ? "Show Full Dashboard / 展示完整 Dashboard"
     : "Step-by-Step Demo / 回到逐步展演";
   updatePresentationStep();
+}
+
+function renderAnalysisStages(activeIndex = -1, state = "idle") {
+  if (!analysisStageList) return;
+
+  analysisStageList.innerHTML = analysisStages
+    .map((label, index) => {
+      const status =
+        state === "failed" && index === activeIndex
+          ? "failed"
+          : state === "complete" || index < activeIndex
+            ? "done"
+            : index === activeIndex
+              ? "active"
+              : "pending";
+      return `<li class="${status}"><span>${index + 1}</span><strong>${label}</strong></li>`;
+    })
+    .join("");
+}
+
+function setAnalysisProgress(index, label, state = "active") {
+  if (!analysisProgress) return;
+
+  const clamped = Math.max(0, Math.min(analysisStages.length - 1, Number(index) || 0));
+  analysisProgress.classList.remove("hidden", "failed", "complete");
+  analysisProgress.classList.toggle("failed", state === "failed");
+  analysisProgress.classList.toggle("complete", state === "complete");
+  analysisProgressLabel.textContent = label || analysisStages[clamped];
+  const pct = state === "complete" ? 100 : Math.round(((clamped + 1) / analysisStages.length) * 100);
+  analysisProgressFill.style.width = `${pct}%`;
+  renderAnalysisStages(clamped, state);
+}
+
+function resetAnalysisProgress() {
+  analysisFailed = false;
+  if (!analysisProgress) return;
+  analysisProgress.classList.add("hidden");
+  analysisProgress.classList.remove("failed", "complete");
+  analysisProgressLabel.textContent = "Analyzing with LLM / 正在使用 LLM 分析";
+  analysisProgressFill.style.width = "0%";
+  renderAnalysisStages();
 }
 
 function scenarioMapPreset(scenarioKey) {
@@ -1217,7 +1263,7 @@ const suitabilityModel = [
 const commandBoundaryModel = [
   {
     title: "Generated by this layer / 本系統會產生",
-    detail: "Validated intent, subsystem-level command plan, time-tagged execution sequence, and operator-review packet."
+    detail: "Validated intent, ADCS commands, camera commands, data/ground commands, time-tagged execution sequence, and operator-review packet."
   },
   {
     title: "Operator-gated / 需額外批准",
@@ -1228,6 +1274,139 @@ const commandBoundaryModel = [
     detail: "Vendor-specific binary telecommands, final CCSDS framing, RF scheduling, and flight-certified uplink release."
   }
 ];
+
+const groundStations = [
+  {
+    name: "KSAT Svalbard",
+    region: "Arctic high-latitude / 北極高緯度",
+    bands: ["X_BAND", "S_BAND"],
+    nextContactUtc: "14:48 UTC",
+    durationMin: 9,
+    dataRateMbps: 150,
+    conflictStatus: "clear",
+    compatibleSatellites: ["SAT-A", "SAT-B", "SAT-01", "SAT-03", "SAT-06", "CUSTOM-01", "CUSTOM-03"]
+  },
+  {
+    name: "Alaska Ground Network",
+    region: "North America polar pass / 北美極軌通過",
+    bands: ["X_BAND"],
+    nextContactUtc: "15:06 UTC",
+    durationMin: 7,
+    dataRateMbps: 110,
+    conflictStatus: "clear",
+    compatibleSatellites: ["SAT-B", "SAT-C", "CUSTOM-01", "CUSTOM-02"]
+  },
+  {
+    name: "Taiwan NSPO S-band",
+    region: "Taiwan regional support / 台灣區域支援",
+    bands: ["S_BAND"],
+    nextContactUtc: "03:18 UTC",
+    durationMin: 6,
+    dataRateMbps: 24,
+    conflictStatus: "clear",
+    compatibleSatellites: ["CUSTOM-01", "CUSTOM-03", "CUSTOM-04"]
+  },
+  {
+    name: "Wallops X-band",
+    region: "US East Coast / 美國東岸",
+    bands: ["X_BAND", "S_BAND"],
+    nextContactUtc: "16:22 UTC",
+    durationMin: 8,
+    dataRateMbps: 95,
+    conflictStatus: "maintenance watch",
+    compatibleSatellites: ["SAT-01", "SAT-03", "SAT-08"]
+  }
+];
+
+function commandEntry({ subsystem, command, parameters = {}, precondition, stateTransition, powerImpact, dataCustody, text }) {
+  return { subsystem, command, parameters, precondition, stateTransition, powerImpact, dataCustody, text };
+}
+
+function chooseGroundStation(assetNames = [], scenarioKey = activeScenario) {
+  const selected = new Set(assetNames);
+  const candidates = groundStations
+    .filter((station) => station.conflictStatus !== "blocked")
+    .filter((station) => station.compatibleSatellites.some((satellite) => selected.has(satellite)))
+    .sort((a, b) => {
+      const priorityA = scenarioKey === "custom" && a.name.includes("Taiwan") ? -1 : 0;
+      const priorityB = scenarioKey === "custom" && b.name.includes("Taiwan") ? -1 : 0;
+      if (priorityA !== priorityB) return priorityA - priorityB;
+      return b.dataRateMbps - a.dataRateMbps;
+    });
+
+  return candidates[0] || null;
+}
+
+function groundStationSummary(station) {
+  if (!station) return "No compatible ground station window; store onboard and wait for the next pass. / 無適配地面站窗口，先存星上等待下一站。";
+  return `${station.name} (${station.bands.join("/")}, ${station.nextContactUtc}, ${station.durationMin} min, ${station.dataRateMbps} Mbps)`;
+}
+
+function downlinkCommandEntries(productRef, assetNames, scenarioKey = activeScenario) {
+  const station = chooseGroundStation(assetNames, scenarioKey);
+
+  if (!station) {
+    return [
+      commandEntry({
+        subsystem: "Data/Ground / 資料與地面段",
+        command: "PAYLOAD_STORE_IMAGE",
+        parameters: { product_ref: productRef },
+        precondition: "Image captured and quality metadata attached.",
+        stateTransition: "Imaging -> Onboard Storage",
+        powerImpact: "Storage only; no transmitter power draw.",
+        dataCustody: "Product remains onboard until a compatible ground pass is found."
+      }),
+      commandEntry({
+        subsystem: "Data/Ground / 資料與地面段",
+        command: "STORE_ONBOARD_AND_WAIT_NEXT_PASS",
+        parameters: { product_ref: productRef, reason: "no compatible ground station" },
+        precondition: "No station matches satellite band, schedule, and conflict constraints.",
+        stateTransition: "Onboard Storage -> Delivery Hold",
+        powerImpact: "No RF downlink energy this orbit.",
+        dataCustody: "Ground workflow receives a waiting-for-contact status only."
+      })
+    ];
+  }
+
+  return [
+    commandEntry({
+      subsystem: "Data/Ground / 資料與地面段",
+      command: "PAYLOAD_STORE_IMAGE",
+      parameters: { product_ref: productRef },
+      precondition: "Capture completed and onboard storage margin confirmed.",
+      stateTransition: "Imaging -> Product Staging",
+      powerImpact: "Storage write only; RF transmitter remains off.",
+      dataCustody: "Product is held onboard before the selected contact."
+    }),
+    commandEntry({
+      subsystem: "Data/Ground / 資料與地面段",
+      command: "COMMS_SCHEDULE_DOWNLINK",
+      parameters: { product_ref: productRef, ground_station: station.name, contact_utc: station.nextContactUtc },
+      precondition: "Ground station band, duration, conflict state, and selected satellite are compatible.",
+      stateTransition: "Product Staging -> Downlink Scheduled",
+      powerImpact: "RF power budget reserved for the contact window.",
+      dataCustody: `Custody remains onboard until ${station.name} acquisition of signal.`
+    }),
+    commandEntry({
+      subsystem: "Data/Ground / 資料與地面段",
+      command: "COMMS_DOWNLINK_TO_STATION",
+      parameters: { product_ref: productRef, ground_station: station.name, band: station.bands[0], data_rate_mbps: station.dataRateMbps },
+      precondition: `${station.name} contact is active and no higher-priority downlink preempts it.`,
+      stateTransition: "Downlink Scheduled -> Ground Received",
+      powerImpact: `Transmitter active for up to ${station.durationMin} min.`,
+      dataCustody: `Custody transfers to ${station.name} ground storage.`
+    }),
+    commandEntry({
+      subsystem: "Data/Ground / 資料與地面段",
+      command: "COMMS_CONFIRM_RECEIPT",
+      parameters: { product_ref: productRef, ground_station: station.name },
+      precondition: "Checksum and product manifest validate on ground.",
+      stateTransition: "Ground Received -> Delivery Workflow",
+      powerImpact: "No spacecraft power impact after receipt confirmation.",
+      dataCustody: "Ground workflow can deliver the product to the requester."
+    })
+  ];
+}
 
 const defaultCustomSatellites = [
   { orbit: "SSO", battery: 78, position: "Ascending pass east of target AOI", payload: "optical", status: "nominal", requiredSlewDeg: 22, maxSlewDeg: 35, slewRateDegS: 0.18 },
@@ -1755,9 +1934,24 @@ function buildCustomConstellationPlan(scenarioKey, target = null) {
         fromState: statusLabels[best.sat.status].split(" /")[0],
         toState: "Slew Planning",
         commands: [
-          { subsystem: "ADCS / 姿態控制", text: `CALCULATE_SLEW ${bestSlew.requiredSlewDeg} deg toward ${targetRef}; max allowed ${bestSlew.maxSlewDeg} deg.` },
-          { subsystem: "Payload / 感測器", text: `SELECT_PAYLOAD_MODE for ${payloadLabels[best.sat.payload]}.` },
-          { subsystem: "Comms & Data / 通訊與資料", text: "RESERVE_STORAGE for custom test product and attach maneuver metadata." }
+          commandEntry({
+            subsystem: "ADCS / 姿態控制",
+            command: "ADCS_SET_MODE",
+            parameters: { from_mode: statusLabels[best.sat.status].split(" /")[0], to_mode: "SLEW_PLANNING" },
+            precondition: "Custom target is geolocated and operator sandbox fleet is active.",
+            stateTransition: `${statusLabels[best.sat.status].split(" /")[0]} -> Slew Planning`,
+            powerImpact: "No slew energy consumed until ADCS_SLEW_TO_AOI.",
+            dataCustody: "No product exists yet."
+          }),
+          commandEntry({
+            subsystem: "Camera / 攝影機",
+            command: "CAMERA_CONFIGURE",
+            parameters: { payload_family: best.sat.payload, mode: captureMode },
+            precondition: `${payloadLabels[best.sat.payload]} is compatible with the custom mission need.`,
+            stateTransition: "Payload Standby -> Capture Configured",
+            powerImpact: "Configuration only; capture power held until pointing is stable.",
+            dataCustody: "Custom product metadata is allocated."
+          })
         ]
       },
       {
@@ -1766,9 +1960,24 @@ function buildCustomConstellationPlan(scenarioKey, target = null) {
         fromState: "Slew Planning",
         toState: "Target Pointing",
         commands: [
-          { subsystem: "ADCS / 姿態控制", text: `EXECUTE_SLEW at ${best.sat.slewRateDegS} deg/s; budget ${bestSlew.adcsEnergyPct}% ADCS energy and ${bestSlew.settleS}s settle.` },
-          { subsystem: "Payload / 感測器", text: "Keep payload standby until target-pointing stability is confirmed." },
-          { subsystem: "Comms & Data / 通訊與資料", text: `Abort before capture if battery would fall below 25%; projected after task is ${bestSlew.batteryAfterTask}%.` }
+          commandEntry({
+            subsystem: "ADCS / 姿態控制",
+            command: "ADCS_SLEW_TO_AOI",
+            parameters: { target_ref: targetRef, slew_deg: bestSlew.requiredSlewDeg, slew_rate_deg_s: best.sat.slewRateDegS, settle_s: bestSlew.settleS },
+            precondition: `Required ${bestSlew.requiredSlewDeg} deg slew is within the ${bestSlew.maxSlewDeg} deg spacecraft limit.`,
+            stateTransition: "Slew Planning -> Target Pointing",
+            powerImpact: `ADCS energy ${bestSlew.adcsEnergyPct}%; projected after task ${bestSlew.batteryAfterTask}%.`,
+            dataCustody: "No product exists before imaging."
+          }),
+          commandEntry({
+            subsystem: "Camera / 攝影機",
+            command: "CAMERA_POWER_ON",
+            parameters: { payload_family: best.sat.payload },
+            precondition: "Target-pointing stability is confirmed.",
+            stateTransition: "Capture Configured -> Camera Ready",
+            powerImpact: `Payload energy ${bestSlew.payloadEnergyPct}% reserved.`,
+            dataCustody: "Product metadata remains onboard."
+          })
         ]
       },
       {
@@ -1777,9 +1986,24 @@ function buildCustomConstellationPlan(scenarioKey, target = null) {
         fromState: "Target Pointing",
         toState: "Imaging",
         commands: [
-          { subsystem: "ADCS / 姿態控制", text: "HOLD_POINTING during the requested capture window." },
-          { subsystem: "Payload / 感測器", text: `TRIGGER_CAPTURE in ${captureMode} mode.` },
-          { subsystem: "Comms & Data / 通訊與資料", text: "Attach custom constellation metadata to the product." }
+          commandEntry({
+            subsystem: "ADCS / 姿態控制",
+            command: "ADCS_TRACK_TARGET",
+            parameters: { target_ref: targetRef, duration_s: 90 },
+            precondition: "Target pointing is inside approved off-nadir and settle limits.",
+            stateTransition: "Target Pointing -> Imaging",
+            powerImpact: "Tracking power remains inside custom task budget.",
+            dataCustody: "Data still onboard."
+          }),
+          commandEntry({
+            subsystem: "Camera / 攝影機",
+            command: "CAMERA_CAPTURE",
+            parameters: { target_ref: targetRef, mode: captureMode, product_ref: `CUSTOM-${best.sat.id}-PRODUCT` },
+            precondition: "Camera is powered and AOI geometry is resolved.",
+            stateTransition: "Camera Ready -> Imaging",
+            powerImpact: "Capture energy included in task estimate.",
+            dataCustody: "Custom product is created onboard."
+          })
         ]
       },
       {
@@ -1788,9 +2012,25 @@ function buildCustomConstellationPlan(scenarioKey, target = null) {
         fromState: "Imaging",
         toState: "LVLH Recovery",
         commands: [
-          { subsystem: "ADCS / 姿態控制", text: "RETURN_LVLH or configured nominal recovery attitude." },
-          { subsystem: "Payload / 感測器", text: "POWER_OFF_PAYLOAD or return payload to standby." },
-          { subsystem: "Comms & Data / 通訊與資料", text: "QUEUE_DOWNLINK; relay-only assets stay optional and operator-gated." }
+          commandEntry({
+            subsystem: "ADCS / 姿態控制",
+            command: "ADCS_RETURN_LVLH",
+            parameters: { recovery_profile: "configured_nominal" },
+            precondition: "Capture complete and no follow-on target approved.",
+            stateTransition: "Imaging -> LVLH Recovery",
+            powerImpact: "Recovery energy included in projected post-task battery.",
+            dataCustody: "Product remains onboard until compatible ground pass."
+          }),
+          commandEntry({
+            subsystem: "Camera / 攝影機",
+            command: "CAMERA_POWER_OFF",
+            parameters: { payload_family: best.sat.payload },
+            precondition: "Payload no longer needed after capture.",
+            stateTransition: "Imaging -> Payload Standby",
+            powerImpact: "Reduces payload draw.",
+            dataCustody: "No change to product custody."
+          }),
+          ...downlinkCommandEntries(`CUSTOM-${best.sat.id}-PRODUCT`, [best.sat.id], "custom")
         ]
       }
     ],
@@ -1820,7 +2060,16 @@ function buildCustomConstellationPlan(scenarioKey, target = null) {
         {
           dispatch: "time_tagged_sequence",
           subsystem: "ADCS",
-          command: "SET_TARGET_POINTING",
+          command: "ADCS_SET_MODE",
+          parameters: {
+            from_mode: statusLabels[best.sat.status].split(" /")[0],
+            to_mode: "SLEW_PLANNING"
+          }
+        },
+        {
+          dispatch: "time_tagged_sequence",
+          subsystem: "ADCS",
+          command: "ADCS_SLEW_TO_AOI",
           parameters: {
             target_ref: targetRef,
             rough_position: best.sat.position,
@@ -1834,15 +2083,47 @@ function buildCustomConstellationPlan(scenarioKey, target = null) {
         },
         {
           dispatch: "time_tagged_sequence",
-          subsystem: "PAYLOAD",
-          command: "TRIGGER_CAPTURE",
-          parameters: { payload_family: best.sat.payload, mode: captureMode }
+          subsystem: "ADCS",
+          command: "ADCS_TRACK_TARGET",
+          parameters: { target_ref: targetRef, duration_s: 90 }
+        },
+        {
+          dispatch: "time_tagged_sequence",
+          subsystem: "CAMERA",
+          command: "CAMERA_POWER_ON",
+          parameters: { payload_family: best.sat.payload }
+        },
+        {
+          dispatch: "time_tagged_sequence",
+          subsystem: "CAMERA",
+          command: "CAMERA_CONFIGURE",
+          parameters: { payload_family: best.sat.payload, mode: captureMode, gsd_m: target?.need?.type === "hazard_response" ? 3 : 1 }
+        },
+        {
+          dispatch: "time_tagged_sequence",
+          subsystem: "CAMERA",
+          command: "CAMERA_CAPTURE",
+          parameters: { target_ref: targetRef, payload_family: best.sat.payload, mode: captureMode, product_ref: `CUSTOM-${best.sat.id}-PRODUCT` }
         },
         {
           dispatch: "post_capture_sequence",
-          subsystem: "COMMS_DATA",
-          command: "QUEUE_DOWNLINK",
+          subsystem: "DATA_GROUND",
+          command: "PAYLOAD_STORE_IMAGE",
           parameters: { product_ref: `CUSTOM-${best.sat.id}-PRODUCT` }
+        },
+        {
+          dispatch: "post_capture_sequence",
+          subsystem: "DATA_GROUND",
+          command: chooseGroundStation([best.sat.id], "custom") ? "COMMS_SCHEDULE_DOWNLINK" : "STORE_ONBOARD_AND_WAIT_NEXT_PASS",
+          parameters: chooseGroundStation([best.sat.id], "custom")
+            ? { product_ref: `CUSTOM-${best.sat.id}-PRODUCT`, ground_station: chooseGroundStation([best.sat.id], "custom").name }
+            : { product_ref: `CUSTOM-${best.sat.id}-PRODUCT`, reason: "no compatible ground station" }
+        },
+        {
+          dispatch: "time_tagged_sequence",
+          subsystem: "ADCS",
+          command: "ADCS_RETURN_LVLH",
+          parameters: { recovery_profile: "configured_nominal" }
         }
       ],
       safety: {
@@ -1924,9 +2205,24 @@ const scenarios = {
         fromState: "LVLH",
         toState: "Target Acquisition",
         commands: [
-          { subsystem: "ADCS / 姿態控制", text: "SET_TARGET_POINTING with +18 deg planned slew and target-settle timer." },
-          { subsystem: "Payload / 感測器", text: "Keep optical payload in standby while attitude converges." },
-          { subsystem: "Comms & Data / 通訊與資料", text: "Reserve 3.2 GB onboard storage for the wildfire product bundle." }
+          commandEntry({
+            subsystem: "ADCS / 姿態控制",
+            command: "ADCS_SET_MODE",
+            parameters: { from_mode: "LVLH", to_mode: "TARGET_ACQUISITION" },
+            precondition: "Operator-approved urgent AOI exists and protected tasks remain untouched.",
+            stateTransition: "LVLH -> Target Acquisition",
+            powerImpact: "ADCS mode change only; slew energy checked in next command.",
+            dataCustody: "No product exists yet."
+          }),
+          commandEntry({
+            subsystem: "ADCS / 姿態控制",
+            command: "ADCS_SLEW_TO_AOI",
+            parameters: { target_ref: "WF-AOI-001", slew_deg: 18, settle_s: 300 },
+            precondition: "SAT-B battery margin remains above 60% after maneuver and imaging.",
+            stateTransition: "Target Acquisition -> Target Pointing",
+            powerImpact: "Estimated ADCS energy 3.4%; post-task battery 67%.",
+            dataCustody: "No downlink action before capture."
+          })
         ]
       },
       {
@@ -1935,9 +2231,33 @@ const scenarios = {
         fromState: "Target Acquisition",
         toState: "Target Pointing",
         commands: [
-          { subsystem: "ADCS / 姿態控制", text: "HOLD_TARGET_POINTING inside the approved off-nadir tolerance." },
-          { subsystem: "Payload / 感測器", text: "POWER_ON_CAMERA and select optical emergency imaging mode." },
-          { subsystem: "Comms & Data / 通訊與資料", text: "Tag the capture as mission WF-2026-001 for downstream packaging." }
+          commandEntry({
+            subsystem: "ADCS / 姿態控制",
+            command: "ADCS_TRACK_TARGET",
+            parameters: { target_ref: "WF-AOI-001", duration_s: 420 },
+            precondition: "Attitude settle timer completed inside off-nadir tolerance.",
+            stateTransition: "Target Pointing -> Target Pointing",
+            powerImpact: "Wheel activity remains inside emergency imaging budget.",
+            dataCustody: "Capture window is open but product is not generated yet."
+          }),
+          commandEntry({
+            subsystem: "Camera / 攝影機",
+            command: "CAMERA_POWER_ON",
+            parameters: { payload_family: "optical" },
+            precondition: "Pointing lock achieved; thermal and power margins safe.",
+            stateTransition: "Standby -> Camera Ready",
+            powerImpact: "Camera startup budget reserved before exposure.",
+            dataCustody: "Mission product ID WF-2026-001 is allocated."
+          }),
+          commandEntry({
+            subsystem: "Camera / 攝影機",
+            command: "CAMERA_CONFIGURE",
+            parameters: { mode: "OPTICAL_EMERGENCY", gsd_m: 3, calibration_profile: "WF_FAST" },
+            precondition: "Optical payload powered and configured by bounded profile only.",
+            stateTransition: "Camera Ready -> Capture Configured",
+            powerImpact: "Configuration has negligible incremental power draw.",
+            dataCustody: "Collection metadata is attached before capture."
+          })
         ]
       },
       {
@@ -1946,9 +2266,24 @@ const scenarios = {
         fromState: "Target Pointing",
         toState: "Imaging",
         commands: [
-          { subsystem: "ADCS / 姿態控制", text: "MAINTAIN_POINTING through the capture window and freeze unnecessary slews." },
-          { subsystem: "Payload / 感測器", text: "TRIGGER_CAPTURE at 3.0 m planning GSD over the resolved AOI." },
-          { subsystem: "Comms & Data / 通訊與資料", text: "Store image strip and quality metadata in the mission product queue." }
+          commandEntry({
+            subsystem: "ADCS / 姿態控制",
+            command: "ADCS_TRACK_TARGET",
+            parameters: { target_ref: "WF-AOI-001", duration_s: 90 },
+            precondition: "Capture timing is inside the approved access window.",
+            stateTransition: "Target Pointing -> Imaging",
+            powerImpact: "No extra slew beyond approved tracking window.",
+            dataCustody: "Ground has no custody until the image is stored and downlinked."
+          }),
+          commandEntry({
+            subsystem: "Camera / 攝影機",
+            command: "CAMERA_CAPTURE",
+            parameters: { target_ref: "WF-AOI-001", gsd_m: 3, product_ref: "WF-2026-001-OPTICAL" },
+            precondition: "Camera configured and target geometry held.",
+            stateTransition: "Capture Configured -> Imaging",
+            powerImpact: "Payload capture energy included in 67% post-task battery estimate.",
+            dataCustody: "Product is created onboard."
+          })
         ]
       },
       {
@@ -1956,11 +2291,7 @@ const scenarios = {
         detail: "Stage the product for delivery.",
         fromState: "Imaging",
         toState: "Product Staging",
-        commands: [
-          { subsystem: "ADCS / 姿態控制", text: "Release target hold and begin attitude recovery planning." },
-          { subsystem: "Payload / 感測器", text: "CAMERA_STANDBY after acquisition completes." },
-          { subsystem: "Comms & Data / 通訊與資料", text: "QUEUE_DOWNLINK for the next X-band ground pass; no crosslink relay requested." }
-        ]
+        commands: downlinkCommandEntries("WF-2026-001-OPTICAL", ["SAT-B"], "wildfire")
       },
       {
         time: "14:36 UTC",
@@ -1968,9 +2299,24 @@ const scenarios = {
         fromState: "Product Staging",
         toState: "LVLH Recovery",
         commands: [
-          { subsystem: "ADCS / 姿態控制", text: "RETURN_LVLH and verify wheel momentum remains inside planning limits." },
-          { subsystem: "Payload / 感測器", text: "Keep the payload in standby pending operator-selected follow-on tasking." },
-          { subsystem: "Comms & Data / 通訊與資料", text: "Publish a delivery-ready status to the ground workflow." }
+          commandEntry({
+            subsystem: "ADCS / 姿態控制",
+            command: "ADCS_RETURN_LVLH",
+            parameters: { verify_wheel_momentum: true },
+            precondition: "Capture and product staging completed.",
+            stateTransition: "Product Staging -> LVLH Recovery",
+            powerImpact: "Recovery slew included in remaining ADCS budget.",
+            dataCustody: "Product custody follows the selected ground-station plan."
+          }),
+          commandEntry({
+            subsystem: "Camera / 攝影機",
+            command: "CAMERA_POWER_OFF",
+            parameters: { payload_family: "optical" },
+            precondition: "No follow-on capture has been approved.",
+            stateTransition: "Imaging -> Payload Standby",
+            powerImpact: "Reduces payload draw after capture.",
+            dataCustody: "No change to stored product custody."
+          })
         ]
       }
     ],
@@ -2001,35 +2347,70 @@ const scenarios = {
           at: "2026-05-13T14:20:00Z",
           dispatch: "time_tagged_sequence",
           subsystem: "ADCS",
-          command: "SET_TARGET_POINTING",
-          parameters: { slew_deg: 18, frame: "TARGET_AOI", settle_s: 300 }
+          command: "ADCS_SET_MODE",
+          parameters: { from_mode: "LVLH", to_mode: "TARGET_ACQUISITION" }
+        },
+        {
+          at: "2026-05-13T14:20:30Z",
+          dispatch: "time_tagged_sequence",
+          subsystem: "ADCS",
+          command: "ADCS_SLEW_TO_AOI",
+          parameters: { target_ref: "WF-AOI-001", slew_deg: 18, settle_s: 300 }
         },
         {
           at: "2026-05-13T14:25:00Z",
           dispatch: "time_tagged_sequence",
-          subsystem: "PAYLOAD",
-          command: "POWER_ON_CAMERA",
-          parameters: { mode: "OPTICAL_EMERGENCY", calibration_profile: "WF_FAST" }
+          subsystem: "CAMERA",
+          command: "CAMERA_POWER_ON",
+          parameters: { payload_family: "optical" }
+        },
+        {
+          at: "2026-05-13T14:25:30Z",
+          dispatch: "time_tagged_sequence",
+          subsystem: "CAMERA",
+          command: "CAMERA_CONFIGURE",
+          parameters: { mode: "OPTICAL_EMERGENCY", gsd_m: 3, calibration_profile: "WF_FAST" }
         },
         {
           at: "2026-05-13T14:32:00Z",
           dispatch: "time_tagged_sequence",
-          subsystem: "PAYLOAD",
-          command: "TRIGGER_CAPTURE",
-          parameters: { gsd_m: 3, target_ref: "WF-AOI-001" }
+          subsystem: "CAMERA",
+          command: "CAMERA_CAPTURE",
+          parameters: { gsd_m: 3, target_ref: "WF-AOI-001", product_ref: "WF-2026-001-OPTICAL" }
         },
         {
           at: "2026-05-13T14:34:00Z",
           dispatch: "time_tagged_sequence",
-          subsystem: "COMMS_DATA",
-          command: "QUEUE_DOWNLINK",
-          parameters: { data_product: "WF-2026-001-OPTICAL", path: "NEXT_X_BAND_PASS" }
+          subsystem: "DATA_GROUND",
+          command: "PAYLOAD_STORE_IMAGE",
+          parameters: { product_ref: "WF-2026-001-OPTICAL" }
+        },
+        {
+          at: "2026-05-13T14:48:00Z",
+          dispatch: "ground_contact_sequence",
+          subsystem: "DATA_GROUND",
+          command: "COMMS_SCHEDULE_DOWNLINK",
+          parameters: { product_ref: "WF-2026-001-OPTICAL", ground_station: "KSAT Svalbard", contact_utc: "14:48 UTC" }
+        },
+        {
+          at: "2026-05-13T14:49:00Z",
+          dispatch: "ground_contact_sequence",
+          subsystem: "DATA_GROUND",
+          command: "COMMS_DOWNLINK_TO_STATION",
+          parameters: { product_ref: "WF-2026-001-OPTICAL", ground_station: "KSAT Svalbard", band: "X_BAND" }
+        },
+        {
+          at: "2026-05-13T14:56:00Z",
+          dispatch: "ground_contact_sequence",
+          subsystem: "DATA_GROUND",
+          command: "COMMS_CONFIRM_RECEIPT",
+          parameters: { product_ref: "WF-2026-001-OPTICAL", ground_station: "KSAT Svalbard" }
         },
         {
           at: "2026-05-13T14:36:00Z",
           dispatch: "time_tagged_sequence",
           subsystem: "ADCS",
-          command: "RETURN_LVLH",
+          command: "ADCS_RETURN_LVLH",
           parameters: { verify_wheel_momentum: true }
         }
       ],
@@ -2139,9 +2520,33 @@ const scenarios = {
         fromState: "LVLH",
         toState: "Target Pointing",
         commands: [
-          { subsystem: "ADCS / 姿態控制", text: "SET_TARGET_POINTING toward the operator-defined construction AOI." },
-          { subsystem: "Payload / 感測器", text: "POWER_ON_CAMERA in repeatability-first optical mode." },
-          { subsystem: "Comms & Data / 通訊與資料", text: "Create recurring product series CM-2026-014 and reserve catalog slot." }
+          commandEntry({
+            subsystem: "ADCS / 姿態控制",
+            command: "ADCS_SET_MODE",
+            parameters: { from_mode: "LVLH", to_mode: "SCHEDULED_TARGETING" },
+            precondition: "Daily monitoring plan approved and protected tasks preserved.",
+            stateTransition: "LVLH -> Scheduled Targeting",
+            powerImpact: "Mode change only; daily slew budget stays below 3.5%.",
+            dataCustody: "No image product exists yet."
+          }),
+          commandEntry({
+            subsystem: "ADCS / 姿態控制",
+            command: "ADCS_SLEW_TO_AOI",
+            parameters: { target_ref: "CM-AOI-014", slew_deg: 7, settle_s: 180 },
+            precondition: "Comparable viewing geometry is inside the approved 5-8 deg window.",
+            stateTransition: "Scheduled Targeting -> Target Pointing",
+            powerImpact: "Slew energy 2.8%; battery remains at 72%.",
+            dataCustody: "Product series CM-2026-014 is opened for baseline capture."
+          }),
+          commandEntry({
+            subsystem: "Camera / 攝影機",
+            command: "CAMERA_POWER_ON",
+            parameters: { payload_family: "optical" },
+            precondition: "Pointing plan is valid and thermal margin is clear.",
+            stateTransition: "Payload Standby -> Camera Ready",
+            powerImpact: "Payload startup power included in daily budget.",
+            dataCustody: "Baseline product ID is reserved."
+          })
         ]
       },
       {
@@ -2150,9 +2555,24 @@ const scenarios = {
         fromState: "Scheduled Targeting",
         toState: "Imaging",
         commands: [
-          { subsystem: "ADCS / 姿態控制", text: "HOLD_VIEWING_GEOMETRY inside the approved off-nadir tolerance." },
-          { subsystem: "Payload / 感測器", text: "TRIGGER_CAPTURE for continuity monitoring." },
-          { subsystem: "Comms & Data / 通訊與資料", text: "Attach image to the same recurring monitoring collection." }
+          commandEntry({
+            subsystem: "ADCS / 姿態控制",
+            command: "ADCS_TRACK_TARGET",
+            parameters: { target_ref: "CM-AOI-014", duration_s: 120 },
+            precondition: "Local solar time and viewing angle are comparable to baseline.",
+            stateTransition: "Scheduled Targeting -> Imaging",
+            powerImpact: "No extra maneuver beyond planned repeatability slew.",
+            dataCustody: "Daily collection remains onboard until station contact."
+          }),
+          commandEntry({
+            subsystem: "Camera / 攝影機",
+            command: "CAMERA_CAPTURE",
+            parameters: { target_ref: "CM-AOI-014", mode: "OPTICAL_REPEATABILITY", product_ref: "CM-2026-014-DAY2" },
+            precondition: "Camera profile matches baseline image settings.",
+            stateTransition: "Camera Ready -> Imaging",
+            powerImpact: "Capture energy included in safe battery margin.",
+            dataCustody: "Image is attached to the same recurring monitoring collection."
+          })
         ]
       },
       {
@@ -2161,9 +2581,24 @@ const scenarios = {
         fromState: "Target Pointing",
         toState: "Imaging",
         commands: [
-          { subsystem: "ADCS / 姿態控制", text: "Apply a slight pointing correction while remaining within policy limits." },
-          { subsystem: "Payload / 感測器", text: "TRIGGER_CAPTURE and record geometry metadata." },
-          { subsystem: "Comms & Data / 通訊與資料", text: "Queue low-latency preview product for quick operator verification." }
+          commandEntry({
+            subsystem: "ADCS / 姿態控制",
+            command: "ADCS_SLEW_TO_AOI",
+            parameters: { target_ref: "CM-AOI-014", slew_deg: 8, settle_s: 150 },
+            precondition: "SAT-06 storage and battery are revalidated before release.",
+            stateTransition: "Target Pointing -> Imaging",
+            powerImpact: "Higher slew load remains within continuity trade-off envelope.",
+            dataCustody: "Geometry metadata will be stored with the image."
+          }),
+          commandEntry({
+            subsystem: "Camera / 攝影機",
+            command: "CAMERA_CAPTURE",
+            parameters: { target_ref: "CM-AOI-014", product_ref: "CM-2026-014-DAY3" },
+            precondition: "Viewing geometry remains comparable enough for monitoring.",
+            stateTransition: "Target Pointing -> Imaging",
+            powerImpact: "Capture allowed only after storage and battery recheck.",
+            dataCustody: "Preview product enters low-latency verification queue."
+          })
         ]
       },
       {
@@ -2172,9 +2607,25 @@ const scenarios = {
         fromState: "Imaging",
         toState: "Product Delivery",
         commands: [
-          { subsystem: "ADCS / 姿態控制", text: "RETURN_LVLH after the site observation window closes." },
-          { subsystem: "Payload / 感測器", text: "CAMERA_STANDBY after the recurring capture completes." },
-          { subsystem: "Comms & Data / 通訊與資料", text: "QUEUE_DOWNLINK; optional crosslink relay stays disabled unless explicitly approved." }
+          commandEntry({
+            subsystem: "ADCS / 姿態控制",
+            command: "ADCS_RETURN_LVLH",
+            parameters: { recovery_profile: "nominal_repeatability" },
+            precondition: "Daily observation window closed.",
+            stateTransition: "Imaging -> LVLH Recovery",
+            powerImpact: "Recovery energy remains inside daily budget.",
+            dataCustody: "Product remains onboard until compatible station contact."
+          }),
+          commandEntry({
+            subsystem: "Camera / 攝影機",
+            command: "CAMERA_POWER_OFF",
+            parameters: { payload_family: "optical" },
+            precondition: "No additional same-pass capture is approved.",
+            stateTransition: "Imaging -> Payload Standby",
+            powerImpact: "Reduces payload draw between daily passes.",
+            dataCustody: "No change to product custody."
+          }),
+          ...downlinkCommandEntries("CM-2026-014-DAILY", ["SAT-01", "SAT-03", "SAT-06"], "construction")
         ]
       }
     ],
@@ -2203,20 +2654,56 @@ const scenarios = {
         {
           dispatch: "recurring_time_tagged_sequence",
           subsystem: "ADCS",
-          command: "SET_TARGET_POINTING",
+          command: "ADCS_SET_MODE",
+          parameters: { from_mode: "LVLH", to_mode: "SCHEDULED_TARGETING", repeat: "daily" }
+        },
+        {
+          dispatch: "recurring_time_tagged_sequence",
+          subsystem: "ADCS",
+          command: "ADCS_SLEW_TO_AOI",
           parameters: { target_ref: "CM-AOI-014", repeat: "daily", geometry_policy: "comparable" }
         },
         {
           dispatch: "recurring_time_tagged_sequence",
-          subsystem: "PAYLOAD",
-          command: "TRIGGER_CAPTURE",
-          parameters: { mode: "OPTICAL_REPEATABILITY", lighting_policy: "consistent_shadow_profile" }
+          subsystem: "ADCS",
+          command: "ADCS_TRACK_TARGET",
+          parameters: { target_ref: "CM-AOI-014", duration_s: 120 }
+        },
+        {
+          dispatch: "recurring_time_tagged_sequence",
+          subsystem: "CAMERA",
+          command: "CAMERA_CONFIGURE",
+          parameters: { mode: "OPTICAL_REPEATABILITY", lighting_policy: "consistent_shadow_profile", gsd_m: 1 }
+        },
+        {
+          dispatch: "recurring_time_tagged_sequence",
+          subsystem: "CAMERA",
+          command: "CAMERA_CAPTURE",
+          parameters: { target_ref: "CM-AOI-014", collection_id: "CM-2026-014" }
         },
         {
           dispatch: "post_capture_sequence",
-          subsystem: "COMMS_DATA",
-          command: "QUEUE_DOWNLINK",
-          parameters: { collection_id: "CM-2026-014", path: "NEXT_AVAILABLE_PASS" }
+          subsystem: "DATA_GROUND",
+          command: "PAYLOAD_STORE_IMAGE",
+          parameters: { collection_id: "CM-2026-014", product_ref: "CM-2026-014-DAILY" }
+        },
+        {
+          dispatch: "ground_contact_sequence",
+          subsystem: "DATA_GROUND",
+          command: "COMMS_SCHEDULE_DOWNLINK",
+          parameters: { collection_id: "CM-2026-014", ground_station: "KSAT Svalbard", path: "NEXT_COMPATIBLE_PASS" }
+        },
+        {
+          dispatch: "ground_contact_sequence",
+          subsystem: "DATA_GROUND",
+          command: "COMMS_DOWNLINK_TO_STATION",
+          parameters: { collection_id: "CM-2026-014", ground_station: "KSAT Svalbard", band: "X_BAND" }
+        },
+        {
+          dispatch: "ground_contact_sequence",
+          subsystem: "DATA_GROUND",
+          command: "COMMS_CONFIRM_RECEIPT",
+          parameters: { collection_id: "CM-2026-014", ground_station: "KSAT Svalbard" }
         }
       ],
       safety: {
@@ -2265,6 +2752,7 @@ function setScenario(nextScenario) {
 }
 
 function resetPanels() {
+  resetAnalysisProgress();
   clarificationBox.className = "clarification-box empty-state";
   clarificationBox.innerHTML = "<strong>Awaiting analysis / 等待分析。</strong><p>Submit a mission request to begin target validation and clarification. / 請先送出任務需求，系統才會開始檢查與澄清。</p>";
   mapCaption.textContent = "No mission area has been analyzed yet. / 尚未開始任務區域分析。";
@@ -2356,10 +2844,20 @@ function renderTimeline(steps) {
           <div class="command-lanes">
             ${commands
               .map(
-                ({ subsystem, text }) => `
+                ({ subsystem, command, parameters, precondition, stateTransition, powerImpact, dataCustody, text }) => `
                   <div class="command-lane">
                     <strong>${subsystem}</strong>
-                    <span>${text}</span>
+                    <div class="command-detail">
+                      <code>${command || "PLANNER_NOTE"}</code>
+                      <span>${text || ""}</span>
+                      <dl>
+                        <div><dt>Parameters / 參數</dt><dd>${parameters ? JSON.stringify(parameters) : "n/a"}</dd></div>
+                        <div><dt>Precondition / 前提</dt><dd>${precondition || "Planner validation required before execution."}</dd></div>
+                        <div><dt>State / 狀態機</dt><dd>${stateTransition || `${fromState} -> ${toState}`}</dd></div>
+                        <div><dt>Power / 用電</dt><dd>${powerImpact || "Included in mission power budget."}</dd></div>
+                        <div><dt>Data custody / 資料鏈</dt><dd>${dataCustody || "Tracked by the ground workflow after capture."}</dd></div>
+                      </dl>
+                    </div>
                   </div>
                 `
               )
@@ -2639,65 +3137,25 @@ function renderCustomScenario(llmResult = null, target = null) {
   syncAoiOverlay();
 }
 
-function fastFallbackIntent(prompt) {
-  const raw = String(prompt || "");
-  const lower = raw.toLowerCase();
-  const isConstruction = activeScenario === "construction" || lower.includes("construction") || lower.includes("site") || /施工|工地/.test(raw);
-  const isWildfire = activeScenario === "wildfire" || lower.includes("wildfire") || lower.includes("fire") || /森林大火|山火|火災|落基山|洛磯山/.test(raw);
-  const isLandslide = lower.includes("landslide") || lower.includes("debris") || lower.includes("mudslide") || /土石流|山崩/.test(raw);
-  const isCustomDrill = activeScenario === "custom" || lower.includes("custom") || lower.includes("slew") || lower.includes("off-nadir");
-  const needsClarification = isConstruction && /\bthis site\b|這裡|這個地點|該地點/i.test(raw);
-  const targetLabel =
-    /西雅圖|seattle/i.test(raw)
-      ? "Downtown Seattle, Seattle, WA, USA"
-      : /alishan|阿里山|chiayi|嘉義/i.test(raw)
-        ? "Alishan Township, Chiayi County, Taiwan"
-        : /落基山|洛磯山|rocky/i.test(raw)
-          ? "Rocky Mountains, Colorado, USA"
-          : /華盛頓|washington|d\.c\./i.test(raw)
-            ? "Washington, DC, USA"
-            : isConstruction
-              ? "ambiguous construction site"
-              : "operator-defined custom AOI";
-
-  return {
-    source: "fast_fallback",
-    warning: "LLM response was not required for demo-speed planning; deterministic parsing was used.",
-    intent: {
-      mission_category: isCustomDrill ? "custom_off_nadir_imaging_drill" : isConstruction ? "recurring_site_monitoring" : isWildfire || isLandslide ? "urgent_disaster_response" : "change_detection",
-      priority: isWildfire || isLandslide ? "high" : "routine",
-      target_resolution: {
-        status: needsClarification ? "needs_clarification" : "candidate",
-        label: targetLabel,
-        geometry: isWildfire || isLandslide ? "regional_area" : "point"
-      },
-      observation_request: {
-        payload_family: "optical",
-        gsd_target_m: isWildfire || isLandslide ? 3 : 1,
-        cadence: isConstruction ? "daily" : "once",
-        delivery_latency: isWildfire || isLandslide ? "rapid" : "best_effort"
-      },
-      constraints: {
-        preserve_existing_missions: true,
-        comparable_lighting: isConstruction,
-        max_off_nadir_deg: isConstruction ? 8 : isCustomDrill ? 35 : 25,
-        cloud_tolerance_pct: null
-      },
-      operator_gate: true,
-      clarification_questions: needsClarification
-        ? ["Please provide an address, coordinates, or draw an AOI for the construction site."]
-        : []
-    }
-  };
-}
-
-async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 1200) {
+async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 30000) {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(url, { ...options, signal: controller.signal });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      let body = {};
+      try {
+        body = await response.json();
+      } catch (error) {
+        body = { error: await response.text() };
+      }
+      const message = body.error || body.warning || `Request failed with ${response.status}`;
+      const requestError = new Error(message);
+      requestError.details = body;
+      requestError.status = response.status;
+      throw requestError;
+    }
     return await response.json();
   } finally {
     window.clearTimeout(timeoutId);
@@ -2705,19 +3163,17 @@ async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 1200) {
 }
 
 async function requestLlmIntent() {
-  const fallback = fastFallbackIntent(missionPrompt.value);
+  const result = await fetchJsonWithTimeout(apiUrl("/api/interpret"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt: missionPrompt.value, provider: "auto" })
+  }, 45000);
 
-  try {
-    const result = await fetchJsonWithTimeout(apiUrl("/api/interpret"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: missionPrompt.value })
-    });
-
-    return result?.intent ? result : fallback;
-  } catch (error) {
-    return fallback;
+  if (!result?.intent) {
+    throw new Error(result?.error || "The LLM response did not include a mission intent.");
   }
+
+  return result;
 }
 
 async function requestGeocode(address) {
@@ -2762,14 +3218,15 @@ function llmSourceLabel(source) {
   if (source === "openrouter") return "OpenRouter Free / OpenRouter 免費路由";
   if (source === "openrouter_grok") return "OpenRouter Grok / OpenRouter Grok 備援";
   if (source === "openai") return "OpenAI API";
-  if (source === "fast_fallback") return "Fast deterministic parser / 快速規則解析";
-  return "Fallback parser / 後備解析器";
+  return "LLM provider / LLM 供應商";
 }
 
 async function analyzeMission() {
   if (analysisInProgress) return;
 
   analysisInProgress = true;
+  analysisFailed = false;
+  setAnalysisProgress(0, "LLM semantic interpretation in progress / LLM 正在解析任務語意");
   updatePresentationStep();
 
   try {
@@ -2781,11 +3238,14 @@ async function analyzeMission() {
     commandOutput.textContent = "Approve a validated plan to reveal the execution packet.\n/ 批准已驗證的任務計畫後，系統才會展開執行指令。";
 
     const llmResult = await requestLlmIntent();
+    setAnalysisProgress(1, "AOI and geocode check / AOI 與地理解析");
 
     if (activeScenario === "wildfire") {
       const geocodeResult = await requestBestGeocode(semanticTargetCandidates(missionPrompt.value, llmResult, "wildfire"));
       const target = buildResolvedTarget(missionPrompt.value, geocodeResult, llmResult, "wildfire");
+      setAnalysisProgress(2, "Mission boundary validation / 任務邊界檢查");
       renderWildfire(target);
+      setAnalysisProgress(4, "Bounded command plan generated / 已產生受控指令計畫", "complete");
       approveButton.disabled = !activeCommandPacket;
       goToPresentationStep(1);
       appendLlmIntentSummary(llmResult);
@@ -2795,7 +3255,9 @@ async function analyzeMission() {
     if (activeScenario === "custom") {
       const geocodeResult = await requestBestGeocode(semanticTargetCandidates(missionPrompt.value, llmResult, "custom"));
       const customTarget = buildCustomTarget(missionPrompt.value, geocodeResult, llmResult);
+      setAnalysisProgress(customTarget?.status === "resolved" ? 3 : 2, customTarget?.status === "resolved" ? "Fleet feasibility scoring / 星系可行性評估" : "Mission boundary hold / 任務邊界暫停");
       renderCustomScenario(llmResult, customTarget);
+      setAnalysisProgress(4, activeCommandPacket ? "Bounded command plan generated / 已產生受控指令計畫" : "Clarification required before commands / 產生指令前需要澄清", activeCommandPacket ? "complete" : "active");
       approveButton.disabled = !activeCommandPacket;
       goToPresentationStep(activeCommandPacket ? 2 : 1);
       appendLlmIntentSummary(llmResult);
@@ -2811,6 +3273,7 @@ async function analyzeMission() {
       const geocodeResult = canAutoResolve ? await requestBestGeocode(candidates) : null;
 
       if (geocodeResult?.result?.location) {
+        setAnalysisProgress(3, "Fleet feasibility scoring / 星系可行性評估");
         constructionResolved = true;
         activeResolvedTarget = buildResolvedTarget(missionPrompt.value, geocodeResult, llmResult, "construction");
         resetMapViewOverride("construction");
@@ -2818,23 +3281,41 @@ async function analyzeMission() {
         clarificationBox.className = "clarification-box ready";
         clarificationBox.innerHTML =
           `<strong>Target resolved / 目標已解析。</strong><p>Google geocoding converted the prompt into ${geocodeResult.result.formatted_address} (${geocodeResult.result.location.lat.toFixed(4)}, ${geocodeResult.result.location.lng.toFixed(4)}). The recurring imaging planner can continue. / 系統已將需求解析為 ${geocodeResult.result.formatted_address}（${geocodeResult.result.location.lat.toFixed(4)}, ${geocodeResult.result.location.lng.toFixed(4)}），可以繼續建立週期性拍攝計畫。</p>`;
+        setAnalysisProgress(4, "Bounded recurring plan generated / 已產生受控週期任務計畫", "complete");
         approveButton.disabled = !activeCommandPacket;
         goToPresentationStep(2);
         appendLlmIntentSummary(llmResult);
         return;
       }
 
+      setAnalysisProgress(2, "Target needs clarification before tasking / 進入任務前需要澄清目標");
       renderConstruction(false);
+      setAnalysisProgress(2, "Clarification required before commands / 產生指令前需要澄清", "active");
       approveButton.disabled = true;
       goToPresentationStep(1);
       appendLlmIntentSummary(llmResult);
       return;
     }
 
+    setAnalysisProgress(3, "Fleet feasibility scoring / 星系可行性評估");
     renderConstruction(true);
+    setAnalysisProgress(4, "Bounded recurring plan generated / 已產生受控週期任務計畫", "complete");
     approveButton.disabled = !activeCommandPacket;
     goToPresentationStep(2);
     appendLlmIntentSummary(llmResult);
+  } catch (error) {
+    analysisFailed = true;
+    const providerErrors = error.details?.provider_errors || error.details?.providerErrors || [];
+    const providerSummary = providerErrors.length
+      ? providerErrors.map((item) => item.source).join(", ")
+      : "configured providers";
+    setAnalysisProgress(0, `LLM analysis failed: ${providerSummary} / LLM 分析失敗：${providerSummary}`, "failed");
+    clarificationBox.className = "clarification-box warning";
+    clarificationBox.innerHTML =
+      `<strong>LLM analysis did not complete / LLM 分析未完成。</strong><p>The system did not generate a mission plan because no LLM provider returned a valid MissionIntent. Check OpenRouter, Grok, or OpenAI credentials and retry. / 因為沒有 LLM 供應商回傳有效任務意圖，系統不會產生任務計畫；請檢查 OpenRouter、Grok 或 OpenAI 金鑰後重試。</p>`;
+    approveButton.disabled = true;
+    activeCommandPacket = null;
+    updateWorkflowProgress("idle");
   } finally {
     analysisInProgress = false;
     updatePresentationStep();
@@ -2876,7 +3357,7 @@ function approveMission() {
   commandOutput.textContent = JSON.stringify(activeCommandPacket || scenarios[activeScenario].command, null, 2);
   exportButton.disabled = false;
   updateWorkflowProgress("approved");
-  goToPresentationStep(8);
+  goToPresentationStep(7);
 }
 
 function exportCommandPacket() {
@@ -2887,7 +3368,7 @@ function exportCommandPacket() {
   commandStatus.textContent = "Export simulated for demo / 展示用匯出已完成";
   exportButton.textContent = "Packet Exported / 指令已匯出";
   updateWorkflowProgress("exported");
-  goToPresentationStep(8);
+  goToPresentationStep(7);
 }
 
 mapImageSelect.addEventListener("change", () => {
