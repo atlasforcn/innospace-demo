@@ -4,10 +4,10 @@ Last updated: 2026-05-20
 
 ## Product Thesis / 產品主張
 
-This demo presents an operator-supervised satellite mission abstraction layer.
-The product value is that an operator can describe an Earth-observation task in natural language, and the system can convert that intent into a structured, explainable, bounded mission plan and command packet.
+This demo presents an operator-supervised intent-to-command satellite mission layer.
+The product value is that an operator can describe an Earth-observation task in natural language, and the system can convert abstract human intent into a structured, explainable, bounded mission plan and concrete subsystem command packet.
 
-這個 demo 的核心不是一般 dashboard，而是「自然語言任務意圖 -> 可解釋任務規劃 -> 有邊界的衛星指令封包」。評審需要看到它未來有產品價值，也要相信實務上可行。
+這個 demo 的核心不是一般 dashboard，也不是把任務變得更抽象，而是「人類抽象自然語言 -> 具體任務需求 -> 可解釋任務規劃 -> 有邊界的衛星/地面段指令封包」。評審需要看到它未來有產品價值，也要相信實務上可行。
 
 ## Non-Negotiable Core / 不可偏離的核心
 
@@ -76,7 +76,8 @@ They should understand:
    After approval, system shows bounded command families:
    - ADCS / attitude pointing commands
    - payload / camera commands
-   - data handling / downlink or delivery commands
+- data handling / downlink or delivery commands
+   - ground-station scheduling and receipt confirmation commands
 
 ## Required Demo Scenarios / 必要情境
 
@@ -158,6 +159,7 @@ The demo should evaluate or display:
 - existing mission conflict
 - protected mission interruption risk
 - downlink or delivery availability
+- compatible ground station availability
 - whether propulsion is required
 
 ## Command Boundary / 指令邊界
@@ -181,7 +183,10 @@ Allowed command families:
 
 - Data:
   - store collection
-  - queue downlink
+  - schedule compatible ground-station downlink
+  - downlink to the selected station
+  - confirm ground receipt
+  - store onboard and wait when no compatible station exists
   - deliver product to requester
   - relay or crosslink only if supported by scenario
 
@@ -200,14 +205,16 @@ Allowed command families:
 - Map should prefer Google Maps when available, then free map, then simplified/preset image.
 - Map source selection should be scenario-aware.
 - AOI overlay must move and scale with map zoom/pan.
+- The top presentation strip should carry the active flow guide; side-rail flow text should not duplicate the step card.
+- Suitability factors should live inside constellation status as expandable planning details, not as a separate presentation step.
 
 ## Performance Direction / 速度優化方向
 
 Do:
 
-- show `Analyzing with LLM...` progress clearly
+- show `Analyzing with LLM...` progress clearly, including staged progress for semantic interpretation, AOI/geocode, boundary validation, feasibility, and command generation
 - use a faster LLM model/provider if needed
-- cache identical prompt results during a demo session
+- optionally cache identical prompt results during a demo session only if clearly labeled as cached LLM output
 - run map image loading after intent interpretation when possible
 - make geocoding retries short and visible
 - show provider source in the intent summary
@@ -215,6 +222,7 @@ Do:
 Do not:
 
 - replace the LLM path with silent deterministic parsing
+- return a fake successful mission plan when all LLM providers fail
 - hide fallback as if it were LLM output
 - let a static preset AOI override the user's natural-language target
 

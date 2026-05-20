@@ -22,7 +22,7 @@ Decision: Keep the command packet locked until operator approval, then auto-adva
 ## Round 4
 Operator concern: The left flow showed only coarse phases and could contradict the current card.
 
-Decision: Left flow now lists every card and uses one clear current-card highlight.
+Decision: The detailed left flow was merged into the top mission progress strip so the active card, current state, and next operator action are visible in one place.
 
 ## Round 5
 Operator concern: The demo should not require extra navigation after output-producing actions.
@@ -35,13 +35,12 @@ Mission flow cards / 任務流程卡片：
 
 1. Mission Intake / 任務輸入
 2. Target Gate / 目標檢核
-3. Mission Requirements / 任務需求模型
+3. Intent-to-Command Translation / 語意轉具體指令
 4. AOI & Access / 區域與可見性
-5. Fleet Readiness / 衛星可用性
-6. Feasibility Rules / 可行性規則
-7. Candidate Decision / 候選決策
-8. Plan & Approval / 計畫與批准
-9. Command Packet / 指令封包
+5. Fleet Status + Fit / 星系狀態與適配
+6. Candidate Decision / 候選決策
+7. Plan & Approval / 計畫與批准
+8. Command Packet / 指令封包
 
 Demo setup cards / 展示設定卡片：
 
@@ -70,11 +69,19 @@ Setup cards are always available because they configure the demo environment. Th
 
 ## Navigation Rules / 導覽規則
 
-- Locked mission cards cannot be opened from the left flow.
+- Locked mission cards cannot be opened from the top mission strip.
 - Previous and Next only move through currently available cards in the same group.
 - Mission cards do not jump into setup cards by pressing Next.
 - Setup cards can be opened anytime and Next/Previous only moves between setup cards.
+- On step 1, Next triggers the real LLM analysis if the request has not been analyzed yet; it does not skip directly to a static template.
 - Analyze, clarify, approve, and export actions move the operator to the next meaningful card automatically.
+
+## LLM And Command Boundary / LLM 與指令邊界
+
+- The demo is not a mission abstraction tool. It translates human intent into concrete, bounded spacecraft and ground-segment commands.
+- The normal path must wait for a real LLM response from OpenRouter, Grok, or OpenAI. If all providers fail, the UI shows a retry/error state instead of silently generating a deterministic success result.
+- The LLM may interpret target, AOI, payload need, GSD, cadence, and ambiguity status, but the command planner constrains the output to the approved command catalog.
+- Step 08 plans must select a compatible ground-station window after imaging. If no compatible station is available, the plan stores the image onboard and waits for the next pass.
 
 ## Data Consistency Rules / 資料一致性規則
 
@@ -83,6 +90,7 @@ Setup cards are always available because they configure the demo environment. Th
 - The custom sandbox feeds only the Custom Fleet Drill scenario.
 - If the operator enables a custom four-satellite drill, the custom scenario map shows those four custom assets instead of fixed SAT-A/B/C.
 - Candidate decisions, recommended asset, timeline, command packet, and map markers must share the same plan source.
+- After a custom natural-language target is resolved, map center, AOI, candidate decisions, and command plan must follow that resolved target instead of reverting to a preset city.
 
 ## Custom Fleet Drill Review / 自訂星系驗證審查
 

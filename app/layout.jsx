@@ -1,6 +1,6 @@
 export const metadata = {
-  title: "Mission Abstraction Layer Demo",
-  description: "Operator-supervised EO mission orchestration demo"
+  title: "Intent-to-Command Mission Demo",
+  description: "Operator-supervised EO intent-to-command mission orchestration demo"
 };
 
 export default function RootLayout({ children }) {

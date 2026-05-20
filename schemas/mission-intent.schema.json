@@ -19,6 +19,7 @@
         "urgent_disaster_response",
         "recurring_site_monitoring",
         "change_detection",
+        "custom_off_nadir_imaging_drill",
         "maritime_monitoring",
         "communications_relay_request"
       ]

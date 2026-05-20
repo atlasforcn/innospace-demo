@@ -1,71 +1,99 @@
 {
-  "version": "0.1",
+  "version": "0.2",
   "commands": [
     {
       "subsystem": "ADCS",
-      "command": "SET_TARGET_POINTING",
-      "description": "Move from nominal attitude to approved target-pointing geometry.",
+      "command": "ADCS_SET_MODE",
+      "description": "Switch ADCS from nominal LVLH or current mode into an approved planning mode.",
+      "required_parameters": ["from_mode", "to_mode"],
+      "operator_gate": false
+    },
+    {
+      "subsystem": "ADCS",
+      "command": "ADCS_SLEW_TO_AOI",
+      "description": "Slew from current attitude toward the approved AOI pointing geometry.",
       "required_parameters": ["target_ref", "slew_deg", "settle_s"],
       "operator_gate": false
     },
     {
       "subsystem": "ADCS",
-      "command": "HOLD_POINTING",
-      "description": "Maintain approved pointing geometry during the requested event window.",
-      "required_parameters": ["duration_s"],
+      "command": "ADCS_TRACK_TARGET",
+      "description": "Maintain approved target-pointing geometry during the capture window.",
+      "required_parameters": ["target_ref", "duration_s"],
       "operator_gate": false
     },
     {
       "subsystem": "ADCS",
-      "command": "RETURN_LVLH",
+      "command": "ADCS_RETURN_LVLH",
       "description": "Return to nominal LVLH or mission-defined recovery attitude.",
       "required_parameters": [],
       "operator_gate": false
     },
     {
-      "subsystem": "PAYLOAD",
-      "command": "POWER_ON_PAYLOAD",
-      "description": "Enable an approved payload family for the selected mission mode.",
+      "subsystem": "CAMERA",
+      "command": "CAMERA_POWER_ON",
+      "description": "Enable an approved imaging payload before acquisition.",
       "required_parameters": ["payload_family"],
       "operator_gate": false
     },
     {
-      "subsystem": "PAYLOAD",
-      "command": "POWER_OFF_PAYLOAD",
-      "description": "Return the payload to a powered-down or standby state.",
-      "required_parameters": ["payload_family"],
+      "subsystem": "CAMERA",
+      "command": "CAMERA_CONFIGURE",
+      "description": "Configure imaging mode, GSD target, exposure profile, and collection metadata.",
+      "required_parameters": ["mode", "gsd_m"],
       "operator_gate": false
     },
     {
-      "subsystem": "PAYLOAD",
-      "command": "SELECT_PAYLOAD_MODE",
-      "description": "Select an approved payload mode before acquisition.",
-      "required_parameters": ["mode"],
-      "operator_gate": false
-    },
-    {
-      "subsystem": "PAYLOAD",
-      "command": "TRIGGER_CAPTURE",
-      "description": "Execute an approved image or measurement acquisition event.",
+      "subsystem": "CAMERA",
+      "command": "CAMERA_CAPTURE",
+      "description": "Execute an approved image acquisition event over the AOI.",
       "required_parameters": ["target_ref"],
       "operator_gate": false
     },
     {
-      "subsystem": "COMMS_DATA",
-      "command": "RESERVE_STORAGE",
-      "description": "Reserve onboard storage for a task product before acquisition.",
-      "required_parameters": ["megabytes"],
+      "subsystem": "CAMERA",
+      "command": "CAMERA_POWER_OFF",
+      "description": "Return the imaging payload to standby or powered-down state.",
+      "required_parameters": ["payload_family"],
       "operator_gate": false
     },
     {
-      "subsystem": "COMMS_DATA",
-      "command": "QUEUE_DOWNLINK",
-      "description": "Place a product into an approved downlink queue.",
+      "subsystem": "DATA_GROUND",
+      "command": "PAYLOAD_STORE_IMAGE",
+      "description": "Store the captured product and collection metadata onboard.",
       "required_parameters": ["product_ref"],
       "operator_gate": false
     },
     {
-      "subsystem": "COMMS_DATA",
+      "subsystem": "DATA_GROUND",
+      "command": "COMMS_SCHEDULE_DOWNLINK",
+      "description": "Reserve a compatible ground-station pass before downlink.",
+      "required_parameters": ["product_ref", "ground_station"],
+      "operator_gate": false
+    },
+    {
+      "subsystem": "DATA_GROUND",
+      "command": "COMMS_DOWNLINK_TO_STATION",
+      "description": "Downlink the product to the selected compatible ground station.",
+      "required_parameters": ["product_ref", "ground_station", "band"],
+      "operator_gate": false
+    },
+    {
+      "subsystem": "DATA_GROUND",
+      "command": "COMMS_CONFIRM_RECEIPT",
+      "description": "Confirm product receipt and handoff to the ground workflow.",
+      "required_parameters": ["product_ref", "ground_station"],
+      "operator_gate": false
+    },
+    {
+      "subsystem": "DATA_GROUND",
+      "command": "STORE_ONBOARD_AND_WAIT_NEXT_PASS",
+      "description": "Hold the product onboard when no compatible ground-station contact is available.",
+      "required_parameters": ["product_ref"],
+      "operator_gate": false
+    },
+    {
+      "subsystem": "DATA_GROUND",
       "command": "REQUEST_CROSSLINK_RELAY",
       "description": "Request a relay or crosslink delivery path if supported by the mission architecture.",
       "required_parameters": ["peer_asset"],

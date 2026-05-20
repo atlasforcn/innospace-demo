@@ -1,8 +1,8 @@
     <main class="app-shell">
       <header class="topbar">
         <div>
-          <p class="eyebrow">Universal Mission Abstraction Layer / 通用任務抽象層</p>
-          <h1>Intent-to-Tasking Mission Dashboard / 任務意圖轉指令儀表板</h1>
+          <p class="eyebrow">Operator-Supervised Intent-to-Command Layer / 操作員監督語意轉指令層</p>
+          <h1>Intent-to-Command Mission Console / 語意轉具體指令任務台</h1>
         </div>
         <div class="topbar-actions">
           <div class="topbar-status">
@@ -16,9 +16,19 @@
       <section class="presentation-toolbar" aria-label="Step presentation controls">
         <button id="prevStepButton" class="ghost-button" type="button">Previous / 上一步</button>
         <div class="presentation-step-summary">
-          <span id="currentStepBadge" class="phase-chip">Mission Step 1 of 9 / 任務第 1 步，共 9 步</span>
-          <strong id="currentStepTitle">Mission Request / 任務需求</strong>
-          <p id="currentStepHint">Each step is shown as one independent card for demo delivery. / 每個步驟會以獨立卡片呈現，方便展演。</p>
+          <div class="summary-mainline">
+            <span id="currentStepBadge" class="phase-chip">Mission Step 1 of 8 / 任務第 1 步，共 8 步</span>
+            <div>
+              <strong id="currentStepTitle">Mission Request / 任務需求</strong>
+              <p id="currentStepHint">Each step is shown as one independent card for demo delivery. / 每個步驟會以獨立卡片呈現，方便展演。</p>
+            </div>
+          </div>
+          <section class="operator-progress" aria-label="Mission workflow progress"></section>
+          <div class="toolbar-workflow-state" aria-label="Current operator workflow state">
+            <span id="workflowStateBadge" class="phase-chip">Step 1 / 第一步</span>
+            <p id="workflowCalloutText">Start with the mission request, then let the system validate, plan, and wait for operator approval. / 先輸入任務需求，再讓系統驗證、規劃，最後等待操作員批准。</p>
+          </div>
+          <ol id="guidedTaskList" class="guided-task-list compact"></ol>
         </div>
         <button id="nextStepButton" class="primary-button" type="button">Next / 下一步</button>
       </section>
@@ -26,25 +36,12 @@
       <section class="workspace-grid">
         <section class="workflow-rail">
           <div class="column-header">
-            <span class="phase-chip">Always-on flow / 常駐流程</span>
+            <span class="phase-chip">Reference / 參考</span>
             <div>
-              <h2>Complete Card Flow / 完整卡片流程</h2>
-              <p>Available mission cards can be opened directly; locked cards unlock after analysis or approval. Setup cards stay available. / 可用任務卡片可直接開啟；鎖定卡片會在分析或批准後解鎖，設定卡片則常駐可用。</p>
+              <h2>Scenario Route / 情境路徑</h2>
+              <p>The active flow now lives in the top mission strip. This panel keeps a compact scenario reference for full dashboard mode. / 主要流程已整合到上方任務列；這裡保留完整 dashboard 模式的情境參考。</p>
             </div>
           </div>
-
-          <section class="operator-progress" aria-label="Mission workflow progress"></section>
-
-          <section class="guided-workflow" aria-label="Guided operator workflow">
-            <div class="workflow-callout">
-              <span id="workflowStateBadge" class="phase-chip">Step 1 / 第一步</span>
-              <div>
-                <h2>Operator Task Queue / 操作員任務順序</h2>
-                <p id="workflowCalloutText">Start with a mission request, then let the system validate, plan, and wait for operator approval. / 先輸入任務需求，再讓系統驗證、規劃，最後等待操作員批准。</p>
-              </div>
-            </div>
-            <ol id="guidedTaskList" class="guided-task-list"></ol>
-          </section>
 
           <div class="panel scenario-flow-panel phase-reference" data-phase-label="Scenario Route / 情境路徑">
             <div class="panel-heading">
@@ -84,6 +81,16 @@
 
             <div class="button-row">
               <button id="analyzeButton" class="primary-button">Analyze Request / 分析需求</button>
+            </div>
+            <div id="analysisProgress" class="analysis-progress hidden" aria-live="polite">
+              <div class="analysis-progress-header">
+                <span class="analysis-spinner" aria-hidden="true"></span>
+                <strong id="analysisProgressLabel">Analyzing with LLM / 正在使用 LLM 分析</strong>
+              </div>
+              <div class="analysis-meter" aria-hidden="true">
+                <span id="analysisProgressFill"></span>
+              </div>
+              <ol id="analysisStageList" class="analysis-stage-list"></ol>
             </div>
           </div>
 
@@ -162,8 +169,8 @@
 
           <div class="panel phase-interpret" data-phase-label="03 Requirements / 任務需求">
             <div class="panel-heading">
-              <h2>Mission Abstraction / 任務抽象化</h2>
-              <span class="pill">Structured intent / 結構化意圖</span>
+              <h2>Intent-to-Command Translation / 語意轉具體指令</h2>
+              <span class="pill">Structured mission intent / 結構化任務意圖</span>
             </div>
             <dl id="intentSummary" class="key-value-list"></dl>
           </div>
@@ -211,14 +218,10 @@
               <span id="constellationBadge" class="pill muted">Awaiting analysis / 等待分析</span>
             </div>
             <div id="satelliteCards" class="satellite-card-grid"></div>
-          </div>
-
-          <div class="panel suitability-panel phase-evaluate" data-phase-label="06 Feasibility Rules / 可行性規則">
-            <div class="panel-heading">
-              <h2>Suitability Factors / 任務適配指標</h2>
-              <span class="pill muted">Planning model / 規劃模型</span>
-            </div>
-            <div id="suitabilityMatrix" class="suitability-grid"></div>
+            <details class="suitability-details">
+              <summary>Planning fit details / 任務適配細節</summary>
+              <div id="suitabilityMatrix" class="suitability-grid"></div>
+            </details>
           </div>
 
           <div class="panel decision-panel phase-evaluate" data-phase-label="07 Candidate Decision / 候選決策">
