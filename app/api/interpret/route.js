@@ -14,6 +14,52 @@ const SATELLITE_KNOWLEDGE_MAX_CHARS = 28000;
 
 let satelliteKnowledgeCache = null;
 
+function knownAoiFromText(text) {
+  const source = String(text || "");
+  if (/阿里山|alishan|chiayi|嘉義/i.test(source)) {
+    return {
+      label: "Alishan Township, Chiayi County, Taiwan",
+      geometry: "regional_area",
+      coordinates: { lat: 23.51, lon: 120.81 }
+    };
+  }
+  if (/落基山|洛磯山|rocky/i.test(source)) {
+    return {
+      label: "Rocky Mountains, Colorado, USA regional AOI",
+      geometry: "regional_area",
+      coordinates: { lat: 40.3428, lon: -105.6836 }
+    };
+  }
+  if (/西雅圖|seattle/i.test(source)) {
+    return {
+      label: "Downtown Seattle, Seattle, WA, USA",
+      geometry: "point",
+      coordinates: { lat: 47.605, lon: -122.3344 }
+    };
+  }
+  if (/華盛頓|washington|d\.c\./i.test(source)) {
+    return {
+      label: "Washington, DC, USA",
+      geometry: "point",
+      coordinates: { lat: 38.9072, lon: -77.0369 }
+    };
+  }
+  return null;
+}
+
+function normalizeCoordinates(value, fallbackValue = null) {
+  const lat = Number(value?.lat ?? value?.latitude);
+  const lon = Number(value?.lon ?? value?.lng ?? value?.longitude);
+  if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon };
+
+  const fallbackLat = Number(fallbackValue?.lat ?? fallbackValue?.latitude);
+  const fallbackLon = Number(fallbackValue?.lon ?? fallbackValue?.lng ?? fallbackValue?.longitude);
+  if (Number.isFinite(fallbackLat) && Number.isFinite(fallbackLon)) {
+    return { lat: fallbackLat, lon: fallbackLon };
+  }
+  return null;
+}
+
 function json(data, init = {}) {
   return Response.json(data, {
     ...init,
@@ -46,7 +92,8 @@ export function OPTIONS() {
 
 function fallbackTargetLabel(prompt, { isCustomDrill, isWildfire, isConstruction, isLandslide }) {
   const text = String(prompt || "");
-  if (/alishan|阿里山|chiayi|嘉義/i.test(text)) return "Alishan Township, Taiwan candidate AOI";
+  const knownAoi = knownAoiFromText(text);
+  if (knownAoi) return knownAoi.label;
   if (/taiwan|台灣|臺灣/i.test(text)) return "Taiwan candidate AOI";
   if (isCustomDrill) return "operator-defined custom AOI";
   if (isWildfire) return "Rocky Mountains candidate AOI";
@@ -65,6 +112,7 @@ function fallbackIntent(prompt) {
   const isComms = lower.includes("communications") || lower.includes("communication") || lower.includes("relay") || lower.includes("downlink") || lower.includes("iot") || /通訊|中繼|下傳|物聯網/.test(raw);
   const isCustomDrill = lower.includes("custom") || lower.includes("slew") || lower.includes("off-nadir") || lower.includes("washington");
   const needsClarification = isConstruction && lower.includes("this site");
+  const knownAoi = knownAoiFromText(raw);
   const targetLabel = fallbackTargetLabel(raw, { isCustomDrill, isWildfire, isConstruction, isLandslide });
   const hasCandidateTarget = isWildfire || isCustomDrill || isLandslide || /alishan|阿里山|taiwan|台灣|臺灣/i.test(raw);
   const missionCategory = isComms
@@ -86,7 +134,8 @@ function fallbackIntent(prompt) {
     target_resolution: {
       status: needsClarification ? "needs_clarification" : hasCandidateTarget ? "candidate" : "needs_clarification",
       label: targetLabel,
-      geometry: isWildfire || isLandslide ? "regional_area" : "point"
+      coordinates: knownAoi?.coordinates || null,
+      geometry: knownAoi?.geometry || (isWildfire || isLandslide ? "regional_area" : "point")
     },
     observation_request: {
       payload_family: payloadFamily,
@@ -162,6 +211,7 @@ function parseJsonObject(text) {
 
 function normalizeIntent(intent, prompt) {
   const fallback = fallbackIntent(prompt);
+  const knownAoi = knownAoiFromText(`${prompt} ${intent?.target_resolution?.label || ""}`);
   const missionCategories = new Set([
     "custom_off_nadir_imaging_drill",
     "recurring_site_monitoring",
@@ -195,6 +245,10 @@ function normalizeIntent(intent, prompt) {
     fallback.target_resolution.status !== "needs_clarification" && normalizedTargetStatus === "needs_clarification"
       ? fallback.target_resolution.status
       : normalizedTargetStatus;
+  const targetCoordinates = normalizeCoordinates(
+    targetResolution.coordinates,
+    knownAoi?.coordinates || fallback.target_resolution.coordinates
+  );
 
   return {
     ...fallback,
@@ -203,8 +257,10 @@ function normalizeIntent(intent, prompt) {
     priority: priorities.has(intent?.priority) ? intent.priority : fallback.priority,
     target_resolution: {
       ...targetResolution,
+      label: knownAoi && targetStatus !== "needs_clarification" ? knownAoi.label : targetResolution.label,
       status: targetStatus,
-      geometry: geometries.has(targetResolution.geometry) ? targetResolution.geometry : fallback.target_resolution.geometry
+      coordinates: targetCoordinates,
+      geometry: knownAoi?.geometry || (geometries.has(targetResolution.geometry) ? targetResolution.geometry : fallback.target_resolution.geometry)
     },
     observation_request: {
       ...observationRequest,
@@ -235,7 +291,9 @@ function buildMissionIntentSystem(satelliteKnowledge) {
     "For maritime monitoring, generally prefer sar for wide-area or all-weather detection, optical for requested visual detail, and communications_relay only for AIS/RF/relay-only requests.",
     "For communications, relay, IoT, PNT, AIS-only, ADS-B-only, or RF-monitoring requests, use communications_relay and set gsd_target_m to null unless an imaging product is also requested.",
     "For wildfire or urgent disaster response, choose optical/multispectral/SAR/thermal_ir according to cloud, daylight, smoke, heat, and speed constraints; do not assume high-resolution optical works through cloud.",
+    "For named regional disaster targets such as the Rocky Mountains or Alishan, return a candidate regional_area with approximate coordinates instead of blocking the mission; the ground system can refine the AOI later.",
     "If target location is ambiguous, set target_resolution.status to needs_clarification and ask precise clarification questions.",
+    "Do not invent exact future capture times or historical observation windows in MissionIntent; leave timing to the downstream access planner.",
     "Never invent spacecraft commands, final satellite selection, or flight-certified telecommands.",
     "The JSON object must include mission_category, priority, target_resolution, observation_request, constraints, operator_gate, and clarification_questions.",
     referenceBlock
