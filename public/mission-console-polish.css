@@ -60,7 +60,7 @@ body::before {
 .topbar {
   position: relative;
   overflow: hidden;
-  padding: clamp(20px, 2.1vw, 34px);
+  padding: clamp(16px, 1.45vw, 24px);
   border-color: rgba(199, 216, 228, 0.24);
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.075), transparent 36%),
@@ -85,9 +85,9 @@ body::before {
 }
 
 h1 {
-  max-width: 980px;
-  font-size: clamp(28px, 2.8vw, 46px);
-  line-height: 1.04;
+  max-width: 840px;
+  font-size: clamp(24px, 2.05vw, 36px);
+  line-height: 1.08;
   letter-spacing: 0;
 }
 
@@ -106,12 +106,28 @@ h2 {
 }
 
 .topbar-status {
-  max-width: 360px;
-  padding: 10px 12px;
+  max-width: 300px;
+  padding: 8px 10px;
   border: 1px solid rgba(178, 199, 215, 0.14);
   border-radius: var(--radius);
   background: rgba(255, 255, 255, 0.035);
   backdrop-filter: blur(12px);
+}
+
+.topbar-actions {
+  gap: 10px;
+}
+
+#dashboardModeToggle.secondary-button {
+  min-height: 38px;
+  padding: 8px 12px;
+  border-color: rgba(118, 184, 255, 0.24);
+  background: rgba(118, 184, 255, 0.045);
+  box-shadow: none;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #c7d2dc;
 }
 
 .presentation-toolbar,

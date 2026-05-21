@@ -1658,6 +1658,12 @@ function semanticTargetCandidates(prompt, llmResult = null, scenarioKey = active
   const locationAfterIn = raw.match(/\b(?:in|near|over|around)\s+([^.;，。]+)/i);
   if (locationAfterIn?.[1]) addUniqueCandidate(candidates, locationAfterIn[1]);
 
+  const locationAfterChineseCue = raw.match(/(?:在|於|位於|靠近|接近|附近|周邊|上空|針對)\s*([^，。；;,.!?]+?)(?=發生|出現|偵測到|通報|需要|周邊|附近|的|$|[，。；;,.!?])/);
+  if (locationAfterChineseCue?.[1]) addUniqueCandidate(candidates, locationAfterChineseCue[1]);
+
+  const locationBeforeChineseEvent = raw.match(/(?:請|幫我|協助|針對|在|於|位於)?\s*([\u4e00-\u9fffA-Za-z\s]+?)(?:發生|出現|偵測到|通報|需要|周邊)/);
+  if (locationBeforeChineseEvent?.[1]) addUniqueCandidate(candidates, locationBeforeChineseEvent[1]);
+
   addUniqueCandidate(candidates, extractCustomTargetQuery(raw));
   if (scenarioKey !== "construction" || !/\bthis site\b|這裡|這個地點|該地點/i.test(raw)) {
     addUniqueCandidate(candidates, raw);

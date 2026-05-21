@@ -59,6 +59,21 @@ function markerLabel(value) {
   return text.slice(0, 1) || "T";
 }
 
+function dynamicAoiPath(lat, lng, scenario) {
+  const latSpan = scenario === "construction" ? 0.0045 : 0.38;
+  const lngSpan = scenario === "construction" ? 0.007 : 0.58;
+  const points = [
+    [lat + latSpan, lng - lngSpan],
+    [lat + latSpan * 0.7, lng + lngSpan],
+    [lat - latSpan * 0.75, lng + lngSpan * 0.75],
+    [lat - latSpan, lng - lngSpan * 0.35],
+    [lat + latSpan, lng - lngSpan]
+  ];
+  const color = scenario === "construction" ? "0x4aa3ffcc" : "0x35d0b2cc";
+  const fill = scenario === "construction" ? "0x4aa3ff33" : "0x35d0b244";
+  return `color:${color}|fillcolor:${fill}|weight:2|${points.map((point) => point.join(",")).join("|")}`;
+}
+
 function viewFromRequest(searchParams) {
   const lat = numericParam(searchParams, "lat");
   const lng = numericParam(searchParams, "lng");
@@ -76,7 +91,8 @@ function viewFromRequest(searchParams) {
       center: [lat, lng],
       zoom,
       maptype,
-      marker: `color:red|label:${markerLabel(searchParams.get("label"))}|${lat},${lng}`
+      marker: `color:red|label:${markerLabel(searchParams.get("label"))}|${lat},${lng}`,
+      path: dynamicAoiPath(lat, lng, scenario)
     };
   }
 
