@@ -721,3 +721,50 @@ select:focus {
     grid-template-columns: 1fr;
   }
 }
+
+/* Presentation layout authority: one active card should own the full stage. */
+.presentation-mode .workspace-grid {
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 0;
+}
+
+.presentation-mode .workflow-rail {
+  display: none;
+}
+
+.presentation-mode .input-rail,
+.presentation-mode .output-rail {
+  display: contents;
+}
+
+.presentation-mode .panel.active-step {
+  grid-column: 1 / -1 !important;
+  justify-self: stretch;
+  width: 100%;
+  max-width: none;
+}
+
+.presentation-mode .mission-input .scenario-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.presentation-mode .mission-input .scenario-button {
+  min-height: 48px;
+  padding: 9px 12px;
+  line-height: 1.2;
+  white-space: normal;
+}
+
+@media (max-width: 720px) {
+  .presentation-mode .mission-input .scenario-buttons {
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(190px, 1fr);
+    grid-template-columns: none;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: thin;
+  }
+}
