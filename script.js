@@ -65,8 +65,7 @@ const presentationPanelSelectors = [
   ".decision-panel",
   ".mission-plan-panel",
   ".command-panel",
-  ".custom-constellation-panel",
-  ".map-source-panel"
+  ".custom-constellation-panel"
 ];
 const presentationPanels = presentationPanelSelectors.map((selector) => document.querySelector(selector)).filter(Boolean);
 
@@ -74,7 +73,7 @@ let activeScenario = "wildfire";
 let constructionResolved = false;
 let approved = false;
 let activeCommandPacket = null;
-let selectedMapImageSource = "auto";
+let selectedMapImageSource = "google";
 let uploadedMapImageUrl = null;
 let uploadedMapImageName = "";
 let activeMapImageToken = 0;
@@ -89,6 +88,7 @@ let analysisFailed = false;
 let mapDragState = null;
 let lastMapDragMoved = false;
 const mapViewOverrides = {};
+const manualMapNavigationEnabled = false;
 
 const presentationSteps = [
   {
@@ -153,13 +153,6 @@ const presentationSteps = [
     group: "Demo Setup / 展示設定",
     title: "Fleet Sandbox / 星系沙盒",
     detail: "Optional demo-only constellation edits for what-if testing. / 展示用自訂星系，供情境測試。"
-  },
-  {
-    key: "setup",
-    phase: "B",
-    group: "Demo Setup / 展示設定",
-    title: "Map Display / 地圖顯示",
-    detail: "Optional visualization source; it does not change flight tasking. / 可選視覺化底圖，不改變飛行任務。"
   }
 ];
 
@@ -716,20 +709,17 @@ function activeMapViewKey() {
   return scenarioMapViewKey(activeScenario);
 }
 
+function normalizeMapImageSource(source) {
+  return source === "simple" ? "simple" : "google";
+}
+
 function syncMapScaleBadge() {
   const view = mapViewForKey(activeMapViewKey());
-  const sourceLabel =
-    selectedMapImageSource === "osm"
-      ? "Free map"
-      : selectedMapImageSource === "google"
-        ? "Google"
-        : selectedMapImageSource === "simple"
-          ? "Simplified"
-          : "Auto";
+  const sourceLabel = selectedMapImageSource === "simple" ? "Simplified" : "Google Maps";
   mapScaleBadge.textContent = `${sourceLabel} · Zoom ${view.zoom} / 比例 ${view.zoom}`;
 }
 
-function clearMissionMapImage(status = "Auto scenario imagery / 自動情境底圖") {
+function clearMissionMapImage(status = "Google Maps will load after analysis / 分析後載入 Google 地圖") {
   activeMapImageToken += 1;
   missionMap.classList.remove("has-image");
   missionMap.classList.remove("has-osm");
@@ -1014,7 +1004,9 @@ async function tryFreeMapProvider({ token, viewKey, status, loadingStatus }) {
 }
 
 function syncMapSourceControls() {
-  if (mapImageSelect.value !== selectedMapImageSource) {
+  selectedMapImageSource = normalizeMapImageSource(selectedMapImageSource);
+
+  if (mapImageSelect && mapImageSelect.value !== selectedMapImageSource) {
     mapImageSelect.value = selectedMapImageSource;
   }
 
@@ -1024,7 +1016,7 @@ function syncMapSourceControls() {
 }
 
 function setMapImageSource(source) {
-  selectedMapImageSource = source;
+  selectedMapImageSource = normalizeMapImageSource(source);
   syncMapSourceControls();
   updateMapImageFromCurrentState();
 }
@@ -1037,18 +1029,8 @@ async function applyMissionMapImage(scenarioKey = activeScenario, options = {}) 
 
   syncMapSourceControls();
 
-  if (forceBlankAuto && selectedMapImageSource === "auto") {
+  if (forceBlankAuto && selectedMapImageSource !== "simple") {
     clearMissionMapImage("Target unresolved: map waits for address or AOI / 目標未解析：地圖等待地址或 AOI");
-    return;
-  }
-
-  if (selectedMapImageSource === "upload") {
-    if (uploadedMapImageUrl) {
-      setMapBackground(uploadedMapImageUrl, `Uploaded: ${uploadedMapImageName} / 已上傳影像`, "center");
-      return;
-    }
-
-    clearMissionMapImage("No uploaded image selected / 尚未選擇上傳影像");
     return;
   }
 
@@ -1059,39 +1041,22 @@ async function applyMissionMapImage(scenarioKey = activeScenario, options = {}) 
 
   const googleUrl = googleStaticMapUrl(viewKey);
 
-  if (selectedMapImageSource === "google" || selectedMapImageSource === "auto") {
-    const googleOk = await tryMapProvider({
-      token,
-      url: googleUrl,
-      status: view.googleStatus,
-      loadingStatus: "Checking Google Maps for this scenario / 正在測試此情境的 Google 地圖"
-    });
-    if (googleOk) return;
-  }
-
-  if (selectedMapImageSource === "osm" || selectedMapImageSource === "google" || selectedMapImageSource === "auto") {
-    const freeOk = await tryFreeMapProvider({
-      token,
-      viewKey,
-      status: view.freeStatus,
-      loadingStatus: "Google unavailable; checking free map / Google 不可用，正在測試免費地圖"
-    });
-    if (freeOk) return;
-  }
+  const googleOk = await tryMapProvider({
+    token,
+    url: googleUrl,
+    status: view.googleStatus,
+    loadingStatus: "Checking Google Maps for this scenario / 正在測試此情境的 Google 地圖"
+  });
+  if (googleOk) return;
 
   if (token === activeMapImageToken) {
-    applySimpleScenarioMap(scenarioKey, "Live maps unavailable; using simplified image. / 即時地圖不可用，切換簡化圖。");
+    applySimpleScenarioMap(scenarioKey, "Google Maps unavailable; using simplified image. / Google 地圖不可用，切換簡化圖。");
   }
 }
 
 function updateMapImageFromCurrentState() {
   if (missionMap.classList.contains("idle")) {
-    if (selectedMapImageSource === "auto") {
-      clearMissionMapImage();
-      return;
-    }
-
-    applyMissionMapImage(activeScenario);
+    clearMissionMapImage();
     return;
   }
 
@@ -1109,7 +1074,7 @@ function updateMapImageFromCurrentState() {
 }
 
 function changeMapZoom(delta) {
-  if (missionMap.classList.contains("idle")) return;
+  if (!manualMapNavigationEnabled || missionMap.classList.contains("idle")) return;
   const viewKey = activeMapViewKey();
   const view = mapViewForKey(viewKey);
   setMapViewOverride(viewKey, { center: view.center, zoom: view.zoom + delta });
@@ -1124,7 +1089,7 @@ function resetCurrentMapView() {
 }
 
 function panMapByPixels(deltaX, deltaY) {
-  if (missionMap.classList.contains("idle")) return;
+  if (!manualMapNavigationEnabled || missionMap.classList.contains("idle")) return;
   const viewKey = activeMapViewKey();
   const view = mapViewForKey(viewKey);
   const [lat, lng] = view.center;
@@ -1140,7 +1105,7 @@ function mapPointerTargetIsControl(event) {
 }
 
 function beginMapDrag(event) {
-  if (missionMap.classList.contains("idle") || mapPointerTargetIsControl(event)) return;
+  if (!manualMapNavigationEnabled || missionMap.classList.contains("idle") || mapPointerTargetIsControl(event)) return;
   mapDragState = {
     pointerId: event.pointerId,
     startX: event.clientX,
@@ -1175,7 +1140,7 @@ function endMapDrag(event) {
 }
 
 function zoomMapFromWheel(event) {
-  if (missionMap.classList.contains("idle") || mapPointerTargetIsControl(event)) return;
+  if (!manualMapNavigationEnabled || missionMap.classList.contains("idle") || mapPointerTargetIsControl(event)) return;
   event.preventDefault();
   changeMapZoom(event.deltaY < 0 ? 1 : -1);
 }
@@ -3371,7 +3336,7 @@ function exportCommandPacket() {
   goToPresentationStep(7);
 }
 
-mapImageSelect.addEventListener("change", () => {
+mapImageSelect?.addEventListener("change", () => {
   setMapImageSource(mapImageSelect.value);
 });
 
@@ -3379,9 +3344,9 @@ mapModeButtons.forEach((button) => {
   button.addEventListener("click", () => setMapImageSource(button.dataset.mapSource));
 });
 
-mapZoomInButton.addEventListener("click", () => changeMapZoom(1));
-mapZoomOutButton.addEventListener("click", () => changeMapZoom(-1));
-mapResetViewButton.addEventListener("click", resetCurrentMapView);
+mapZoomInButton?.addEventListener("click", () => changeMapZoom(1));
+mapZoomOutButton?.addEventListener("click", () => changeMapZoom(-1));
+mapResetViewButton?.addEventListener("click", resetCurrentMapView);
 missionMap.addEventListener("pointerdown", beginMapDrag);
 missionMap.addEventListener("pointermove", updateMapDrag);
 missionMap.addEventListener("pointerup", endMapDrag);
@@ -3389,7 +3354,7 @@ missionMap.addEventListener("pointercancel", endMapDrag);
 missionMap.addEventListener("wheel", zoomMapFromWheel, { passive: false });
 window.addEventListener("resize", syncAoiOverlay);
 
-mapImageUpload.addEventListener("change", () => {
+mapImageUpload?.addEventListener("change", () => {
   const [file] = mapImageUpload.files;
   if (!file) return;
 
@@ -3405,15 +3370,15 @@ mapImageUpload.addEventListener("change", () => {
   updateMapImageFromCurrentState();
 });
 
-clearMapImageButton.addEventListener("click", () => {
+clearMapImageButton?.addEventListener("click", () => {
   if (uploadedMapImageUrl) {
     URL.revokeObjectURL(uploadedMapImageUrl);
   }
 
   uploadedMapImageUrl = null;
   uploadedMapImageName = "";
-  mapImageUpload.value = "";
-  setMapImageSource("auto");
+  if (mapImageUpload) mapImageUpload.value = "";
+  setMapImageSource("google");
 });
 
 scenarioButtons.forEach((button) => {

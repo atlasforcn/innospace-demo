@@ -120,20 +120,14 @@
               <h2>Mission Area Display / 任務區域顯示</h2>
               <span class="pill muted">Map source / 地圖來源</span>
             </div>
-            <p class="input-helper">The selected scenario controls the location. Auto mode tries Google first, then a free map, then the simplified scenario image. / 情境會決定地點；自動模式會先試 Google，再試免費地圖，最後切到簡化情境圖。</p>
+            <p class="input-helper">The selected scenario controls the location. Google Maps is used when the API responds; the simplified image is the only fallback. / 情境會決定地點；API 有回應時使用 Google 地圖，唯一備援是簡化版。</p>
             <div class="map-imagery-controls" aria-label="Map imagery controls">
-              <label class="field-label" for="mapImageSelect">Map image source / 地圖影像來源</label>
+              <label class="field-label" for="mapImageSelect">Display mode / 顯示模式</label>
               <select id="mapImageSelect">
-                <option value="auto">Auto: Google → free map → simplified / 自動：Google → 免費地圖 → 簡化圖</option>
-                <option value="google">Google Maps for current scenario / Google 地圖：目前情境</option>
-                <option value="osm">Free map for current scenario / 免費地圖：目前情境</option>
-                <option value="simple">Simplified scenario image / 簡化情境圖片</option>
-                <option value="upload">Uploaded image / 已上傳影像</option>
+                <option value="google">Google Maps when API responds / Google 地圖：API 有回應時使用</option>
+                <option value="simple">Simplified fallback image / 簡化版備用圖</option>
               </select>
-              <label class="upload-button" for="mapImageUpload">Upload map image / 上傳地圖影像</label>
-              <input id="mapImageUpload" class="visually-hidden" type="file" accept="image/*" />
-              <button id="clearMapImageButton" class="ghost-button" type="button">Clear image / 清除影像</button>
-              <span id="mapImageStatus" class="map-image-status">Auto scenario imagery / 自動情境底圖</span>
+              <span id="mapImageStatus" class="map-image-status">Google Maps default; simplified fallback remains available. / 預設 Google 地圖；保留簡化版備用。</span>
             </div>
           </div>
 
@@ -184,16 +178,14 @@
               <span id="mapBadge" class="pill muted">Awaiting analysis / 等待分析</span>
             </div>
             <div class="map-card-controls" aria-label="Mission map source quick controls">
-              <button class="map-mode-button active" data-map-source="auto" type="button">Auto / 自動</button>
-              <button class="map-mode-button" data-map-source="google" type="button">Google</button>
-              <button class="map-mode-button" data-map-source="osm" type="button">Free map / 免費</button>
+              <button class="map-mode-button active" data-map-source="google" type="button">Google Maps / Google 地圖</button>
               <button class="map-mode-button" data-map-source="simple" type="button">Simplified / 簡化</button>
             </div>
 
             <div class="mission-map idle">
               <iframe id="osmMapFrame" class="osm-map-frame hidden" title="OpenStreetMap mission area"></iframe>
               <div class="map-grid"></div>
-              <div class="map-navigation-controls" aria-label="Map navigation controls">
+              <div class="map-navigation-controls" aria-label="Map navigation controls" aria-hidden="true">
                 <button id="mapZoomInButton" type="button" aria-label="Zoom in">+</button>
                 <button id="mapZoomOutButton" type="button" aria-label="Zoom out">-</button>
                 <button id="mapResetViewButton" type="button">Reset / 重置</button>
