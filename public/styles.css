@@ -2733,18 +2733,13 @@ select:focus {
   padding: 12px 14px;
 }
 
-.map-navigation-controls,
-.map-scale-badge {
-  display: none;
-}
-
 .mission-map {
-  cursor: default;
-  touch-action: auto;
+  cursor: grab;
+  touch-action: none;
 }
 
 .mission-map.dragging {
-  cursor: default;
+  cursor: grabbing;
 }
 
 .mission-input .scenario-buttons {

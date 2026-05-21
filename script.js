@@ -88,7 +88,7 @@ let analysisFailed = false;
 let mapDragState = null;
 let lastMapDragMoved = false;
 const mapViewOverrides = {};
-const manualMapNavigationEnabled = false;
+const manualMapNavigationEnabled = true;
 
 const presentationSteps = [
   {

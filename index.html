@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Intent-to-Command Mission Demo</title>
     <link rel="stylesheet" href="./styles.css" />
-    <link rel="stylesheet" href="./public/mission-console-polish.css?v=stage-layout-20260521" />
+    <link rel="stylesheet" href="./public/mission-console-polish.css?v=map-nav-20260521" />
   </head>
   <body class="presentation-mode">
     <main class="app-shell">
@@ -195,7 +195,7 @@
             <div class="mission-map idle">
               <iframe id="osmMapFrame" class="osm-map-frame hidden" title="OpenStreetMap mission area"></iframe>
               <div class="map-grid"></div>
-              <div class="map-navigation-controls" aria-label="Map navigation controls" aria-hidden="true">
+              <div class="map-navigation-controls" aria-label="Map navigation controls">
                 <button id="mapZoomInButton" type="button" aria-label="Zoom in">+</button>
                 <button id="mapZoomOutButton" type="button" aria-label="Zoom out">-</button>
                 <button id="mapResetViewButton" type="button">Reset / 重置</button>
@@ -265,7 +265,7 @@
       </section>
     </main>
 
-    <script src="./script.js"></script>
+    <script src="./script.js?v=map-nav-20260521"></script>
     <script src="./public/construction-target-hotfix.js"></script>
   </body>
 </html>
