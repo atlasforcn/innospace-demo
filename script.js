@@ -40,6 +40,13 @@ const commandStatus = document.getElementById("commandStatus");
 const commandBoundary = document.getElementById("commandBoundary");
 const commandOutput = document.getElementById("commandOutput");
 const exportButton = document.getElementById("exportButton");
+const deliveryStationName = document.getElementById("deliveryStationName");
+const deliveryDispatchTime = document.getElementById("deliveryDispatchTime");
+const deliveryExecutionTime = document.getElementById("deliveryExecutionTime");
+const deliveryMissionName = document.getElementById("deliveryMissionName");
+const deliveryAssetName = document.getElementById("deliveryAssetName");
+const deliveryCadence = document.getElementById("deliveryCadence");
+const deliveryStatus = document.getElementById("deliveryStatus");
 const customConstellationToggle = document.getElementById("customConstellationToggle");
 const customSatelliteCount = document.getElementById("customSatelliteCount");
 const generateConstellationButton = document.getElementById("generateConstellationButton");
@@ -65,6 +72,7 @@ const presentationPanelSelectors = [
   ".decision-panel",
   ".mission-plan-panel",
   ".command-panel",
+  ".delivery-panel",
   ".custom-constellation-panel"
 ];
 const presentationPanels = presentationPanelSelectors.map((selector) => document.querySelector(selector)).filter(Boolean);
@@ -148,6 +156,13 @@ const presentationSteps = [
     detail: "Only approved ADCS, payload, and data commands are exposed for export. / 只顯示已批准的姿態、酬載與資料指令。"
   },
   {
+    key: "export",
+    phase: "10",
+    group: "Mission Flow / 任務流程",
+    title: "Ground Station Dispatch / 地面站派送",
+    detail: "Confirm the packet was staged to the nearest ground station and show the expected tasking time. / 確認指令已派送至最近地面站，並顯示預計任務時間。"
+  },
+  {
     key: "setup",
     phase: "A",
     group: "Demo Setup / 展示設定",
@@ -161,7 +176,8 @@ const workflowStepToPanel = {
   clarify: 1,
   plan: 3,
   approve: 6,
-  export: 7
+  export: 7,
+  delivered: 8
 };
 
 const workflowProgressByState = {
@@ -169,7 +185,7 @@ const workflowProgressByState = {
   blocked: { completeThrough: 0, availableThrough: 1, blockedIndex: 1 },
   planned: { completeThrough: 5, availableThrough: 6 },
   approved: { completeThrough: 6, availableThrough: 7 },
-  exported: { completeThrough: 7, availableThrough: 7 }
+  exported: { completeThrough: 8, availableThrough: 8 }
 };
 
 const analysisStages = [
@@ -327,8 +343,8 @@ const workflowTextByState = {
     text: "Operator approval has unlocked the bounded command packet for export. / 操作員批准後，受控指令封包已可匯出。"
   },
   exported: {
-    badge: "Exported / 已匯出",
-    text: "The demo export is complete; the command packet remains visible for audit. / 展示用匯出完成，指令封包保留供審核。"
+    badge: "Dispatched / 已派送",
+    text: "The bounded packet has been dispatched to the nearest satellite ground station. The final card shows the estimated mission execution time. / 受控指令封包已派送至最近的衛星地面站；最後卡片會顯示預計任務執行時間。"
   }
 };
 
@@ -367,11 +383,11 @@ const taskQueueByState = {
   ],
   exported: [
     ["done", "Packet exported / 封包已匯出", "Demo export feedback has been shown."],
-    ["done", "Audit ready / 可供稽核", "The command packet remains visible."],
+    ["done", "Ground station dispatch / 地面站派送", "The packet is staged to the nearest compatible ground station."],
+    ["done", "Execution time set / 執行時間已排定", "The final card shows the estimated tasking time."],
     ["done", "Boundary preserved / 邊界保留", "Only approved command families are included."],
-    ["done", "Flight stack separate / 飛行系統分離", "Vendor binary telecommands remain outside this demo."],
     ["done", "Operator trace / 操作員紀錄", "Approval remains the explicit gate."],
-    ["done", "Delivery staged / 交付已排程", "Data delivery is represented as queued downlink."]
+    ["done", "Audit ready / 可供稽核", "The command packet remains visible for review."]
   ]
 };
 
@@ -2689,11 +2705,13 @@ function setScenario(nextScenario) {
   activeResolvedTarget = null;
   Object.keys(mapViewOverrides).forEach((key) => delete mapViewOverrides[key]);
   approved = false;
+  activeCommandPacket = null;
   approveButton.disabled = true;
   exportButton.disabled = true;
   exportButton.textContent = "Export Command Packet / 匯出指令封包";
   commandStatus.textContent = "Locked until approval / 核准前鎖定";
   commandOutput.textContent = "Approve a validated plan to reveal the execution packet.\n/ 批准已驗證的任務計畫後，系統才會展開執行指令。";
+  resetDeliveryConfirmation();
   scenarioButtons.forEach((button) => {
     button.classList.toggle("active", button.dataset.scenario === nextScenario);
   });
@@ -2736,6 +2754,7 @@ function resetPanels() {
   decisionTable.innerHTML = "";
   missionTimeline.innerHTML = "";
   commandBoundary.innerHTML = "";
+  resetDeliveryConfirmation();
   planStatus.textContent = "Awaiting analysis / 等待分析";
   recommendedAsset.className = "recommended-asset empty-plan";
   recommendedAsset.innerHTML = "<span class=\"label\">Recommended asset / 最建議衛星</span><strong>Awaiting analysis / 等待分析</strong>";
@@ -3201,6 +3220,7 @@ async function analyzeMission() {
     activeCommandPacket = null;
     commandStatus.textContent = "Locked until approval / 核准前鎖定";
     commandOutput.textContent = "Approve a validated plan to reveal the execution packet.\n/ 批准已驗證的任務計畫後，系統才會展開執行指令。";
+    resetDeliveryConfirmation();
 
     const llmResult = await requestLlmIntent();
     setAnalysisProgress(1, "AOI and geocode check / AOI 與地理解析");
@@ -3325,6 +3345,64 @@ function approveMission() {
   goToPresentationStep(7);
 }
 
+function missionExecutionOffsetMinutes(command = activeCommandPacket) {
+  const missionType = command?.mission_type || scenarios[activeScenario]?.command?.mission_type || "";
+  if (missionType.includes("urgent") || activeScenario === "wildfire") return 18;
+  if (missionType.includes("recurring") || activeScenario === "construction") return 145;
+  if (missionType.includes("custom") || activeScenario === "custom") return 42;
+  return 35;
+}
+
+function formatDemoDateTime(date) {
+  return new Intl.DateTimeFormat("zh-TW", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).format(date);
+}
+
+function stationForCommand(command = activeCommandPacket) {
+  const assetNames = command?.selected_assets || selectedAssetNamesFromPlan(scenarios[activeScenario]) || [];
+  return chooseGroundStation(assetNames, activeScenario);
+}
+
+function cadenceLabelForCommand(command = activeCommandPacket) {
+  const cadence = command?.planning_requirements?.cadence;
+  if (cadence === "daily") return "Daily recurring pass / 每日週期通過";
+  if (command?.dispatch === "recurring_time_tagged_sequence") return "Recurring / 週期任務";
+  return activeScenario === "construction" ? "Daily recurring pass / 每日週期通過" : "Single approved pass / 單次批准通過";
+}
+
+function resetDeliveryConfirmation() {
+  if (!deliveryStatus) return;
+  deliveryStatus.textContent = "Awaiting export / 等待匯出";
+  deliveryStationName.textContent = "Pending / 待定";
+  deliveryDispatchTime.textContent = "Pending / 待定";
+  deliveryExecutionTime.textContent = "Pending / 待定";
+  deliveryMissionName.textContent = "Pending / 待定";
+  deliveryAssetName.textContent = "Pending / 待定";
+  deliveryCadence.textContent = "Pending / 待定";
+}
+
+function renderDeliveryConfirmation() {
+  const command = activeCommandPacket || scenarios[activeScenario]?.command;
+  const station = stationForCommand(command);
+  const now = new Date();
+  const executionDate = new Date(now.getTime() + missionExecutionOffsetMinutes(command) * 60 * 1000);
+  const assetNames = command?.selected_assets?.length ? command.selected_assets : ["Selected asset / 已選衛星"];
+  const stationName = station ? `${station.name} · ${station.region}` : "Next compatible ground station / 下一個適配地面站";
+
+  deliveryStatus.textContent = "Dispatched to ground station / 已派送至地面站";
+  deliveryStationName.textContent = stationName;
+  deliveryDispatchTime.textContent = formatDemoDateTime(now);
+  deliveryExecutionTime.textContent = formatDemoDateTime(executionDate);
+  deliveryMissionName.textContent = `${command?.mission_id || "Mission"} · ${command?.mission_type || "approved_tasking"}`;
+  deliveryAssetName.textContent = assetNames.join(", ");
+  deliveryCadence.textContent = cadenceLabelForCommand(command);
+}
+
 function exportCommandPacket() {
   if (exportButton.disabled) {
     return;
@@ -3332,8 +3410,9 @@ function exportCommandPacket() {
 
   commandStatus.textContent = "Export simulated for demo / 展示用匯出已完成";
   exportButton.textContent = "Packet Exported / 指令已匯出";
+  renderDeliveryConfirmation();
   updateWorkflowProgress("exported");
-  goToPresentationStep(7);
+  goToPresentationStep(8);
 }
 
 mapImageSelect?.addEventListener("change", () => {

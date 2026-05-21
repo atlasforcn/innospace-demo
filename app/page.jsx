@@ -8,7 +8,7 @@ export default function Page() {
   return (
     <>
       <div dangerouslySetInnerHTML={{ __html: html }} />
-      <Script src="/script.js?v=map-nav-20260521" strategy="afterInteractive" />
+      <Script src="/script.js?v=delivery-confirmation-20260521" strategy="afterInteractive" />
       <Script src="/construction-target-hotfix.js" strategy="afterInteractive" />
     </>
   );

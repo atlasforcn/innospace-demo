@@ -2328,6 +2328,72 @@ select:focus {
   font-family: "SF Mono", "Cascadia Code", "Roboto Mono", ui-monospace, monospace;
 }
 
+.delivery-hero {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 22px;
+  padding: clamp(20px, 2vw, 30px);
+  border: 1px solid rgba(53, 208, 178, 0.28);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(120deg, rgba(53, 208, 178, 0.18), rgba(118, 184, 255, 0.07) 58%, transparent),
+    rgba(255, 255, 255, 0.035);
+}
+
+.delivery-kicker,
+.delivery-grid span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.delivery-hero strong {
+  font-size: clamp(28px, 3vw, 52px);
+  line-height: 1.08;
+}
+
+.delivery-hero p {
+  margin: 0;
+  max-width: 860px;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1.45;
+}
+
+.delivery-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.delivery-grid div {
+  display: grid;
+  gap: 8px;
+  min-height: 108px;
+  padding: 16px;
+  border: 1px solid rgba(199, 216, 228, 0.16);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), transparent 90px),
+    rgba(255, 255, 255, 0.03);
+}
+
+.delivery-grid .wide {
+  grid-column: span 2;
+}
+
+.delivery-grid strong {
+  align-self: end;
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.delivery-grid b {
+  color: var(--accent);
+}
+
 .good {
   color: #a0eba2;
 }
@@ -2378,6 +2444,12 @@ select:focus {
 
   .decision-row {
     grid-template-columns: 1fr;
+  }
+
+  .delivery-grid,
+  .delivery-grid .wide {
+    grid-template-columns: 1fr;
+    grid-column: auto;
   }
 }
 

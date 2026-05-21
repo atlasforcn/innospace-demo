@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Intent-to-Command Mission Demo</title>
-    <link rel="stylesheet" href="./styles.css" />
-    <link rel="stylesheet" href="./public/mission-console-polish.css?v=map-nav-20260521" />
+    <link rel="stylesheet" href="./styles.css?v=delivery-confirmation-20260521" />
+    <link rel="stylesheet" href="./public/mission-console-polish.css?v=delivery-confirmation-20260521" />
   </head>
   <body class="presentation-mode">
     <main class="app-shell">
@@ -261,11 +261,49 @@
               <button id="exportButton" class="ghost-button" disabled>Export Command Packet / 匯出指令封包</button>
             </div>
           </div>
+
+          <div class="panel delivery-panel phase-command" data-phase-label="10 Ground Station Dispatch / 地面站派送">
+            <div class="panel-heading">
+              <h2>Dispatch Confirmation / 派送確認</h2>
+              <span id="deliveryStatus" class="pill muted">Awaiting export / 等待匯出</span>
+            </div>
+            <div class="delivery-hero">
+              <span class="delivery-kicker">Command uplink staged / 指令上行已排程</span>
+              <strong>指令已經派送往最近的衛星地面站</strong>
+              <p>The approved bounded command packet is now queued for ground-station uplink. / 已批准的受控指令封包已排入地面站上行流程。</p>
+            </div>
+            <div class="delivery-grid">
+              <div>
+                <span>Nearest ground station / 最近地面站</span>
+                <strong id="deliveryStationName">Pending / 待定</strong>
+              </div>
+              <div>
+                <span>Dispatch time / 派送時間</span>
+                <strong id="deliveryDispatchTime">Pending / 待定</strong>
+              </div>
+              <div class="wide">
+                <span>Mission execution / 任務執行</span>
+                <strong>任務將會在 <b id="deliveryExecutionTime">Pending / 待定</b> 進行</strong>
+              </div>
+              <div>
+                <span>Mission / 任務</span>
+                <strong id="deliveryMissionName">Pending / 待定</strong>
+              </div>
+              <div>
+                <span>Assigned asset / 執行衛星</span>
+                <strong id="deliveryAssetName">Pending / 待定</strong>
+              </div>
+              <div>
+                <span>Cadence / 任務週期</span>
+                <strong id="deliveryCadence">Pending / 待定</strong>
+              </div>
+            </div>
+          </div>
         </section>
       </section>
     </main>
 
-    <script src="./script.js?v=map-nav-20260521"></script>
+    <script src="./script.js?v=delivery-confirmation-20260521"></script>
     <script src="./public/construction-target-hotfix.js"></script>
   </body>
 </html>
