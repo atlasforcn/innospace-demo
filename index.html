@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Intent-to-Command Mission Demo</title>
-    <link rel="stylesheet" href="./styles.css?v=dynamic-map-header-20260521" />
-    <link rel="stylesheet" href="./public/mission-console-polish.css?v=dynamic-map-header-20260521" />
+    <link rel="stylesheet" href="./styles.css?v=llm-target-dispatch-20260521" />
+    <link rel="stylesheet" href="./public/mission-console-polish.css?v=llm-target-dispatch-20260521" />
   </head>
   <body class="presentation-mode">
     <main class="app-shell">
@@ -27,7 +27,7 @@
         <button id="prevStepButton" class="ghost-button" type="button">Previous / 上一步</button>
         <div class="presentation-step-summary">
           <div class="summary-mainline">
-            <span id="currentStepBadge" class="phase-chip">Mission Step 1 of 8 / 任務第 1 步，共 8 步</span>
+            <span id="currentStepBadge" class="phase-chip">Mission Step 1 of 9 / 任務第 1 步，共 9 步</span>
             <div>
               <strong id="currentStepTitle">Mission Request / 任務需求</strong>
               <p id="currentStepHint">Each step is shown as one independent card for demo delivery. / 每個步驟會以獨立卡片呈現，方便展演。</p>
@@ -40,7 +40,7 @@
           </div>
           <ol id="guidedTaskList" class="guided-task-list compact"></ol>
         </div>
-        <button id="nextStepButton" class="primary-button" type="button">Next / 下一步</button>
+        <button id="nextStepButton" class="primary-button" type="button">Analyze & Continue / 分析並下一步</button>
       </section>
 
       <section class="workspace-grid">
@@ -303,7 +303,7 @@
       </section>
     </main>
 
-    <script src="./script.js?v=dynamic-map-header-20260521"></script>
+    <script src="./script.js?v=llm-target-dispatch-20260521"></script>
     <script src="./public/construction-target-hotfix.js"></script>
   </body>
 </html>

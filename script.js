@@ -617,6 +617,13 @@ function hasTargetCoordinates(target = activeCustomTarget) {
   return Number.isFinite(Number(target?.location?.lat)) && Number.isFinite(Number(target?.location?.lng));
 }
 
+function coordinatesFromLlmTarget(llmResult = null) {
+  const coordinates = llmResult?.intent?.target_resolution?.coordinates;
+  const lat = Number(coordinates?.lat ?? coordinates?.latitude);
+  const lng = Number(coordinates?.lng ?? coordinates?.lon ?? coordinates?.longitude);
+  return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+}
+
 function cleanDisplayText(value, fallback = "Custom AOI") {
   const text = String(value || "").replace(/[<>]/g, "").replace(/\s+/g, " ").trim();
   return text ? text.slice(0, 120) : fallback;
@@ -1728,17 +1735,18 @@ function inferCustomObservationNeed(prompt) {
 function buildCustomTarget(prompt, geocodeResult, llmResult = null) {
   const query = cleanDisplayText(geocodeResult?.query_candidate || semanticTargetCandidates(prompt, llmResult, "custom")[0] || extractCustomTargetQuery(prompt), "Custom target");
   const result = geocodeResult?.result;
-  const lat = Number(result?.location?.lat);
-  const lng = Number(result?.location?.lng);
+  const llmCoordinates = coordinatesFromLlmTarget(llmResult);
+  const lat = Number(result?.location?.lat ?? llmCoordinates?.lat);
+  const lng = Number(result?.location?.lng ?? llmCoordinates?.lng);
   const need = inferCustomObservationNeed(prompt);
 
   if (Number.isFinite(lat) && Number.isFinite(lng)) {
-    const label = cleanDisplayText(result.formatted_address || query);
+    const label = cleanDisplayText(result?.formatted_address || llmResult?.intent?.target_resolution?.label || query);
     const target = {
       status: "resolved",
       label,
       query: cleanDisplayText(query, label),
-      source: geocodeResult?.source || "fallback",
+      source: geocodeResult?.source || (llmCoordinates ? "llm" : "fallback"),
       location: { lat, lng },
       need
     };
@@ -1762,8 +1770,9 @@ function buildResolvedTarget(prompt, geocodeResult, llmResult = null, scenarioKe
     scenarioKey === "wildfire" ? "wildfire AOI" : "mission AOI"
   );
   const result = geocodeResult?.result;
-  const lat = Number(result?.location?.lat);
-  const lng = Number(result?.location?.lng);
+  const llmCoordinates = coordinatesFromLlmTarget(llmResult);
+  const lat = Number(result?.location?.lat ?? llmCoordinates?.lat);
+  const lng = Number(result?.location?.lng ?? llmCoordinates?.lng);
   const need = inferCustomObservationNeed(prompt);
 
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
@@ -1771,9 +1780,9 @@ function buildResolvedTarget(prompt, geocodeResult, llmResult = null, scenarioKe
   const target = {
     status: "resolved",
     scenario: scenarioKey,
-    label: cleanDisplayText(result.formatted_address || query),
+    label: cleanDisplayText(result?.formatted_address || llmResult?.intent?.target_resolution?.label || query),
     query,
-    source: geocodeResult?.source || "fallback",
+    source: geocodeResult?.source || (llmCoordinates ? "llm" : "fallback"),
     location: { lat, lng },
     need
   };

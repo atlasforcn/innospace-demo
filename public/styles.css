@@ -2787,6 +2787,11 @@ select:focus {
   display: none;
 }
 
+.presentation-mode .toolbar-workflow-state,
+.presentation-mode .workspace-grid > section > .column-header {
+  display: none;
+}
+
 .summary-mainline {
   align-items: center;
 }
