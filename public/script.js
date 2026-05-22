@@ -604,8 +604,13 @@ function scenarioMapViewKey(scenarioKey) {
   return "wildfire";
 }
 
+const remoteApiBase = "https://innospace-demo-git-codex-frontend-mis-3019c9-atlas-projects-api.vercel.app";
+
 function localApiBase() {
-  return window.location.protocol === "file:" ? "https://innospace-demo.vercel.app" : "";
+  const localStaticPreview =
+    window.location.protocol === "file:" ||
+    ((window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost") && window.location.port === "3005");
+  return localStaticPreview ? remoteApiBase : "";
 }
 
 function apiUrl(path) {
