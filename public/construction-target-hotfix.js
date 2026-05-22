@@ -3,15 +3,60 @@
 
   if (
     typeof resolveConstructionTarget !== "function" ||
+    typeof renderWildfire !== "function" ||
     typeof renderConstruction !== "function" ||
+    typeof renderCustomScenario !== "function" ||
     typeof buildResolvedTarget !== "function" ||
-    typeof mapViewForKey !== "function"
+    typeof mapViewForKey !== "function" ||
+    typeof goToPresentationStep !== "function" ||
+    typeof resetCurrentMapView !== "function" ||
+    typeof resetMapViewOverride !== "function" ||
+    typeof syncAoiOverlay !== "function" ||
+    typeof hasTargetCoordinates !== "function" ||
+    typeof presentationSteps === "undefined"
   ) {
     window.setTimeout(installConstructionTargetHotfix, 40);
     return;
   }
 
   window.__constructionTargetHotfixInstalled = true;
+
+  function resetAoiMapWhenVisible() {
+    if (missionMap.classList.contains("idle")) return;
+    resetCurrentMapView();
+    window.requestAnimationFrame?.(() => syncAoiOverlay());
+    window.setTimeout(() => syncAoiOverlay(), 120);
+  }
+
+  function currentPanelIsAoiMap() {
+    return presentationSteps[activePresentationStepIndex]?.title === "AOI & Access / 區域與可見性";
+  }
+
+  const originalGoToPresentationStep = goToPresentationStep;
+  goToPresentationStep = function patchedGoToPresentationStep(index) {
+    const previousStep = activePresentationStepIndex;
+    const result = originalGoToPresentationStep.apply(this, arguments);
+    if (previousStep !== activePresentationStepIndex && currentPanelIsAoiMap()) {
+      resetAoiMapWhenVisible();
+    }
+    return result;
+  };
+
+  const originalRenderWildfire = renderWildfire;
+  renderWildfire = function patchedRenderWildfire(target) {
+    if (hasTargetCoordinates(target)) resetMapViewOverride("wildfire");
+    const result = originalRenderWildfire.apply(this, arguments);
+    if (currentPanelIsAoiMap() && hasTargetCoordinates(activeResolvedTarget)) resetAoiMapWhenVisible();
+    return result;
+  };
+
+  const originalRenderCustomScenario = renderCustomScenario;
+  renderCustomScenario = function patchedRenderCustomScenario(llmResult, target) {
+    if (target?.status === "resolved") resetMapViewOverride("custom");
+    const result = originalRenderCustomScenario.apply(this, arguments);
+    if (currentPanelIsAoiMap() && hasTargetCoordinates(activeCustomTarget)) resetAoiMapWhenVisible();
+    return result;
+  };
 
   function mapDefinedConstructionTargetHotfix() {
     const view = mapViewForKey("construction");
@@ -32,7 +77,9 @@
   const originalRenderConstruction = renderConstruction;
   renderConstruction = function patchedRenderConstruction(resolved) {
     if (resolved) resetMapViewOverride("construction");
-    return originalRenderConstruction.apply(this, arguments);
+    const result = originalRenderConstruction.apply(this, arguments);
+    if (resolved && currentPanelIsAoiMap()) resetAoiMapWhenVisible();
+    return result;
   };
 
   resolveConstructionTarget = function patchedResolveConstructionTarget(mode, geocodeResult = null) {
