@@ -604,7 +604,7 @@ function scenarioMapViewKey(scenarioKey) {
   return "wildfire";
 }
 
-const remoteApiBase = "https://innospace-demo-git-codex-frontend-mis-3019c9-atlas-projects-api.vercel.app";
+const remoteApiBase = "https://innospace-demo.vercel.app";
 
 function localApiBase() {
   const localStaticPreview =
