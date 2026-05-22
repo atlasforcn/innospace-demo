@@ -8,6 +8,12 @@ const corsHeaders = {
 
 const fallbackLocations = [
   {
+    pattern: /陽明山|yangmingshan|yangming mountain|yangmingshan national park/i,
+    formatted_address: "Yangmingshan National Park, Taipei, Taiwan",
+    location: { lat: 25.1664, lng: 121.5637 },
+    place_id: "fallback-yangmingshan-taiwan"
+  },
+  {
     pattern: /new taipei|新北/i,
     formatted_address: "New Taipei City, Taiwan",
     location: { lat: 25.0169, lng: 121.4628 },
@@ -54,6 +60,12 @@ const fallbackLocations = [
     formatted_address: "Alishan Township, Chiayi County, Taiwan",
     location: { lat: 23.4355, lng: 120.7809 },
     place_id: "fallback-alishan-taiwan"
+  },
+  {
+    pattern: /富士山|ふじさん|mount\s+fuji|fuji(?:san)?/i,
+    formatted_address: "Mount Fuji, Japan",
+    location: { lat: 35.3606, lng: 138.7274 },
+    place_id: "fallback-mount-fuji-japan"
   },
   {
     pattern: /tokyo|東京/i,
@@ -116,7 +128,7 @@ const fallbackLocations = [
     place_id: "fallback-paris-france"
   },
   {
-    pattern: /rocky|mountain|wildfire|colorado|落基山|洛磯山|森林大火|山火|火災/i,
+    pattern: /rocky|colorado|落基山|洛磯山/i,
     formatted_address: "Rocky Mountains, Colorado, USA",
     location: { lat: 39.18, lng: -106.82 },
     place_id: "fallback-rocky-mountains"

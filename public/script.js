@@ -634,6 +634,70 @@ function cleanDisplayText(value, fallback = "Custom AOI") {
   return text ? text.slice(0, 120) : fallback;
 }
 
+function normalizePromptText(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function isScenarioPromptEdited(scenarioKey, prompt) {
+  return normalizePromptText(prompt) !== normalizePromptText(scenarios[scenarioKey]?.prompt || "");
+}
+
+function isGenericTargetCandidate(value) {
+  const text = cleanDisplayText(value, "")
+    .replace(/\bcandidate\s+AOI\b/gi, "")
+    .replace(/\btarget\s+from\s+operator\s+prompt\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+
+  return (
+    !text ||
+    [
+      "wildfire",
+      "forest fire",
+      "fire",
+      "urgent disaster response",
+      "mission",
+      "mission target",
+      "target",
+      "aoi",
+      "operator prompt",
+      "taiwan",
+      "台灣",
+      "臺灣"
+    ].includes(text)
+  );
+}
+
+function promptHasSpecificPlace(prompt) {
+  return /陽明山|yangmingshan|yangming mountain|富士山|fuji|阿里山|alishan|落基山|洛磯山|rocky|華盛頓|washington|seattle|西雅圖/i.test(
+    String(prompt || "")
+  );
+}
+
+function targetLabelConflictsWithPrompt(prompt, label) {
+  const targetLabel = cleanDisplayText(label, "");
+  if (!targetLabel) return false;
+
+  const promptText = String(prompt || "").toLowerCase();
+  const labelText = targetLabel.toLowerCase();
+  if (/^(?:taiwan|台灣|臺灣)(?:\s+candidate\s+aoi)?$/i.test(labelText) && promptHasSpecificPlace(promptText)) {
+    return true;
+  }
+  if (isGenericTargetCandidate(targetLabel)) return false;
+
+  const knownTargets = [
+    { label: /陽明山|yangmingshan|yangming mountain/i, prompt: /陽明山|yangmingshan|yangming mountain/i },
+    { label: /rocky|colorado|落基山|洛磯山/i, prompt: /rocky|colorado|落基山|洛磯山/i },
+    { label: /fuji|富士山|ふじさん/i, prompt: /fuji|富士山|ふじさん/i },
+    { label: /alishan|阿里山|chiayi|嘉義/i, prompt: /alishan|阿里山|chiayi|嘉義/i },
+    { label: /washington|d\.c\.|華盛頓/i, prompt: /washington|d\.c\.|華盛頓/i }
+  ];
+  const matchedTarget = knownTargets.find((item) => item.label.test(labelText));
+
+  return Boolean(matchedTarget && !matchedTarget.prompt.test(promptText));
+}
+
 function formatCoordinatePair(lat, lng) {
   const latValue = Number(lat);
   const lngValue = Number(lng);
@@ -1082,8 +1146,16 @@ async function applyMissionMapImage(scenarioKey = activeScenario, options = {}) 
   });
   if (googleOk) return;
 
+  const freeMapOk = await tryFreeMapProvider({
+    token,
+    viewKey,
+    status: view.freeStatus || "Free map centered on resolved AOI / 免費地圖已置中解析 AOI",
+    loadingStatus: "Google Maps unavailable; loading centered free map / Google 地圖不可用，改載置中的免費地圖"
+  });
+  if (freeMapOk) return;
+
   if (token === activeMapImageToken) {
-    applySimpleScenarioMap(scenarioKey, "Google Maps unavailable; using simplified image. / Google 地圖不可用，切換簡化圖。");
+    applySimpleScenarioMap(scenarioKey, "Map providers unavailable; using explicit demo image. / 地圖供應來源不可用，改用明確標示的展示圖。");
   }
 }
 
@@ -1656,19 +1728,26 @@ function extractCustomTargetQuery(prompt) {
 }
 
 function addUniqueCandidate(candidates, value) {
-  const text = cleanDisplayText(value, "").replace(/\bcandidate AOI\b/gi, "").trim();
-  if (!text || /unspecified|ambiguous|operator-defined custom/i.test(text)) return;
+  const text = cleanDisplayText(value, "")
+    .replace(/^(the|a|an)\s+/i, "")
+    .replace(/\bcandidate AOI\b/gi, "")
+    .trim();
+  if (!text || isGenericTargetCandidate(text) || /unspecified|ambiguous|operator-defined custom/i.test(text)) return;
   if (!candidates.some((candidate) => candidate.toLowerCase() === text.toLowerCase())) {
     candidates.push(text);
   }
 }
 
-function semanticTargetCandidates(prompt, llmResult = null, scenarioKey = activeScenario) {
+function semanticTargetCandidates(prompt, llmResult = null, scenarioKey = activeScenario, options = {}) {
   const raw = String(prompt || "").trim();
   const candidates = [];
-  addUniqueCandidate(candidates, llmResult?.intent?.target_resolution?.label);
+  const includeLlmLabel = options.includeLlmLabel !== false;
 
+  if (/陽明山|yangmingshan|yangming mountain|yangmingshan national park/i.test(raw)) {
+    addUniqueCandidate(candidates, "Yangmingshan National Park, Taipei, Taiwan");
+  }
   if (/阿里山|alishan/i.test(raw)) addUniqueCandidate(candidates, "Alishan Township, Chiayi County, Taiwan");
+  if (/富士山|ふじさん|mount\s+fuji|fuji(?:san)?/i.test(raw)) addUniqueCandidate(candidates, "Mount Fuji, Japan");
   if (/落基山|洛磯山|rocky/i.test(raw)) addUniqueCandidate(candidates, "Rocky Mountains");
   if (/華盛頓|washington|d\.c\./i.test(raw)) addUniqueCandidate(candidates, "Washington, DC, USA");
 
@@ -1684,6 +1763,9 @@ function semanticTargetCandidates(prompt, llmResult = null, scenarioKey = active
   addUniqueCandidate(candidates, extractCustomTargetQuery(raw));
   if (scenarioKey !== "construction" || !/\bthis site\b|這裡|這個地點|該地點/i.test(raw)) {
     addUniqueCandidate(candidates, raw);
+  }
+  if (includeLlmLabel && !targetLabelConflictsWithPrompt(raw, llmResult?.intent?.target_resolution?.label)) {
+    addUniqueCandidate(candidates, llmResult?.intent?.target_resolution?.label);
   }
 
   return candidates;
@@ -2959,12 +3041,61 @@ function renderNarrativePanels() {
   renderScenarioFlows();
 }
 
-function renderWildfire(target = null) {
+function renderWildfire(target = null, options = {}) {
   const scenario = scenarios.wildfire;
   activeResolvedTarget = hasTargetCoordinates(target) ? { ...target, scenario: "wildfire" } : null;
-  const targetLabel = activeResolvedTarget?.label || "Rocky Mountains wildfire AOI";
-  const targetLat = activeResolvedTarget?.location?.lat ?? 39.18;
-  const targetLng = activeResolvedTarget?.location?.lng ?? -106.82;
+
+  if (!activeResolvedTarget) {
+    missionMap.classList.remove("idle");
+    clearMissionMapImage("Target unresolved: map waits for a real coordinate or AOI / 目標未解析：地圖等待真實座標或 AOI");
+    mapBadge.className = "pill muted";
+    mapBadge.textContent = "Target unresolved / 目標未解析";
+    constellationBadge.className = "pill muted";
+    constellationBadge.textContent = "Planning paused / 規劃暫停";
+    mapTarget.className = "map-target wildfire-target hidden";
+    renderMapAssets([]);
+
+    const mismatchDetail =
+      options.reason === "llm_target_mismatch"
+        ? "The LLM returned a target that does not match the edited prompt, so the planner stopped instead of reusing the preset wildfire AOI. / LLM 回傳的目標與這次輸入不一致，因此系統已停止，不會偷用預設山火 AOI。"
+        : "The edited prompt could not be converted into a coordinate or AOI, so no spacecraft is scored and no command packet is generated. / 這次輸入尚未能轉成座標或 AOI，因此不評分衛星，也不產生指令封包。";
+
+    clarificationBox.className = "clarification-box warning";
+    clarificationBox.innerHTML = `<strong>Target validation failed / 目標驗證未通過。</strong><p>${mismatchDetail}</p>`;
+    mapCaption.textContent = "Planning is paused until the current prompt resolves to a real AOI. / 目前規劃暫停，直到這次輸入可解析為真實 AOI。";
+    renderDefinitionList([
+      ["Mission type / 任務類型", "Urgent disaster response / 緊急災害應變"],
+      ["Target validation / 目標驗證", "No trusted AOI resolved from the current prompt / 尚未從這次輸入解析出可信 AOI"],
+      ["Planning policy / 任務策略", "Stop before satellite scoring when target truth is uncertain / 目標不可信時停止，不進入衛星評分"]
+    ]);
+    renderCards([]);
+    renderSuitabilityModel();
+    renderDecisionRows([["Target Gate", "Paused", "No preset AOI or command packet is used when the edited prompt cannot be validated.", "warn"]]);
+    renderRecommendedAsset({
+      title: "Awaiting valid AOI / 等待有效 AOI",
+      note: "The demo keeps the command boundary honest by failing visibly instead of substituting the preset scenario."
+    });
+    renderTimeline([
+      {
+        time: "Planning hold / 規劃暫停",
+        detail: "Resolve the current prompt to a trusted coordinate or AOI before access, slew, payload, or battery checks.",
+        fromState: "Mission Intake",
+        toState: "Target Gate",
+        commands: [
+          { subsystem: "Planner / 規劃器", text: "BLOCK_TASKING: target validation failed for the current prompt." }
+        ]
+      }
+    ]);
+    renderCommandBoundary();
+    activeCommandPacket = null;
+    updateWorkflowProgress("blocked");
+    planStatus.textContent = "Target validation failed / 目標驗證未通過";
+    return;
+  }
+
+  const targetLabel = activeResolvedTarget.label || "wildfire AOI";
+  const targetLat = activeResolvedTarget.location.lat;
+  const targetLng = activeResolvedTarget.location.lng;
 
   missionMap.classList.remove("idle");
   applyMissionMapImage("wildfire");
@@ -3251,11 +3382,32 @@ async function analyzeMission() {
     setAnalysisProgress(1, "AOI and geocode check / AOI 與地理解析");
 
     if (activeScenario === "wildfire") {
-      const geocodeResult = await requestBestGeocode(semanticTargetCandidates(missionPrompt.value, llmResult, "wildfire"));
-      const target = buildResolvedTarget(missionPrompt.value, geocodeResult, llmResult, "wildfire");
+      const promptEdited = isScenarioPromptEdited("wildfire", missionPrompt.value);
+      const llmTargetMismatch =
+        promptEdited && targetLabelConflictsWithPrompt(missionPrompt.value, llmResult?.intent?.target_resolution?.label);
+
+      if (llmTargetMismatch) {
+        setAnalysisProgress(2, "LLM target mismatch; planning stopped / LLM 目標不一致，規劃已停止", "failed");
+        renderWildfire(null, { reason: "llm_target_mismatch" });
+        approveButton.disabled = true;
+        goToPresentationStep(1);
+        appendLlmIntentSummary(llmResult);
+        return;
+      }
+
+      const geocodeResult = await requestBestGeocode(
+        semanticTargetCandidates(missionPrompt.value, llmResult, "wildfire", { includeLlmLabel: !promptEdited })
+      );
+      const target = buildResolvedTarget(missionPrompt.value, geocodeResult, promptEdited ? null : llmResult, "wildfire");
       setAnalysisProgress(2, "Mission boundary validation / 任務邊界檢查");
       renderWildfire(target);
-      setAnalysisProgress(4, "Bounded command plan generated / 已產生受控指令計畫", "complete");
+      setAnalysisProgress(
+        activeCommandPacket ? 4 : 2,
+        activeCommandPacket
+          ? "Bounded command plan generated / 已產生受控指令計畫"
+          : "Target validation failed before command generation / 產生指令前目標驗證未通過",
+        activeCommandPacket ? "complete" : "active"
+      );
       approveButton.disabled = !activeCommandPacket;
       goToPresentationStep(1);
       appendLlmIntentSummary(llmResult);

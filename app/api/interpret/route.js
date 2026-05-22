@@ -16,6 +16,20 @@ let satelliteKnowledgeCache = null;
 
 function knownAoiFromText(text) {
   const source = String(text || "");
+  if (/陽明山|yangmingshan|yangming mountain|yangmingshan national park/i.test(source)) {
+    return {
+      label: "Yangmingshan National Park, Taipei, Taiwan regional AOI",
+      geometry: "regional_area",
+      coordinates: { lat: 25.1664, lon: 121.5637 }
+    };
+  }
+  if (/富士山|ふじさん|mount\s+fuji|fuji(?:san)?/i.test(source)) {
+    return {
+      label: "Mount Fuji, Japan regional AOI",
+      geometry: "regional_area",
+      coordinates: { lat: 35.3606, lon: 138.7274 }
+    };
+  }
   if (/阿里山|alishan|chiayi|嘉義/i.test(source)) {
     return {
       label: "Alishan Township, Chiayi County, Taiwan",
@@ -94,9 +108,9 @@ function fallbackTargetLabel(prompt, { isCustomDrill, isWildfire, isConstruction
   const text = String(prompt || "");
   const knownAoi = knownAoiFromText(text);
   if (knownAoi) return knownAoi.label;
-  if (/taiwan|台灣|臺灣/i.test(text)) return "Taiwan candidate AOI";
+  if (/^(?:taiwan|台灣|臺灣)$/i.test(text.trim())) return "Taiwan candidate AOI";
   if (isCustomDrill) return "operator-defined custom AOI";
-  if (isWildfire) return "Rocky Mountains candidate AOI";
+  if (isWildfire) return "wildfire target from operator prompt";
   if (isLandslide) return "debris-flow candidate AOI";
   if (isConstruction) return "ambiguous construction site";
   return "unspecified target";
@@ -114,7 +128,8 @@ function fallbackIntent(prompt) {
   const needsClarification = isConstruction && lower.includes("this site");
   const knownAoi = knownAoiFromText(raw);
   const targetLabel = fallbackTargetLabel(raw, { isCustomDrill, isWildfire, isConstruction, isLandslide });
-  const hasCandidateTarget = isWildfire || isCustomDrill || isLandslide || /alishan|阿里山|taiwan|台灣|臺灣/i.test(raw);
+  const hasCandidateTarget =
+    Boolean(knownAoi) || isCustomDrill || isLandslide || /alishan|阿里山/i.test(raw);
   const missionCategory = isComms
     ? "communications_relay_request"
     : isMaritime
@@ -291,6 +306,8 @@ function buildMissionIntentSystem(satelliteKnowledge) {
     "For maritime monitoring, generally prefer sar for wide-area or all-weather detection, optical for requested visual detail, and communications_relay only for AIS/RF/relay-only requests.",
     "For communications, relay, IoT, PNT, AIS-only, ADS-B-only, or RF-monitoring requests, use communications_relay and set gsd_target_m to null unless an imaging product is also requested.",
     "For wildfire or urgent disaster response, choose optical/multispectral/SAR/thermal_ir according to cloud, daylight, smoke, heat, and speed constraints; do not assume high-resolution optical works through cloud.",
+    "Treat demo presets and examples only as examples. Never carry a preset target such as Rocky Mountains into the answer unless the current user prompt explicitly names that target.",
+    "If the prompt names a different target, such as Mount Fuji or 富士山, return that target instead of any preset scenario target.",
     "For named regional disaster targets such as the Rocky Mountains or Alishan, return a candidate regional_area with approximate coordinates instead of blocking the mission; the ground system can refine the AOI later.",
     "If target location is ambiguous, set target_resolution.status to needs_clarification and ask precise clarification questions.",
     "Do not invent exact future capture times or historical observation windows in MissionIntent; leave timing to the downstream access planner.",
