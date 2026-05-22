@@ -77,22 +77,28 @@ function dynamicAoiPath(lat, lng, scenario) {
 function viewFromRequest(searchParams) {
   const lat = numericParam(searchParams, "lat");
   const lng = numericParam(searchParams, "lng");
+  const centerLat = numericParam(searchParams, "center_lat");
+  const centerLng = numericParam(searchParams, "center_lng");
+  const targetLat = numericParam(searchParams, "target_lat") ?? lat;
+  const targetLng = numericParam(searchParams, "target_lng") ?? lng;
   const scenario = normalizeScenario(searchParams.get("scenario"));
   const baseView = mapViews[scenario];
 
-  if (lat !== null && lng !== null && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+  if (targetLat !== null && targetLng !== null && targetLat >= -90 && targetLat <= 90 && targetLng >= -180 && targetLng <= 180) {
     const zoom = clamp(Number(searchParams.get("zoom")) || 12, 1, 20);
     const maptype = ["roadmap", "satellite", "terrain", "hybrid"].includes(searchParams.get("maptype"))
       ? searchParams.get("maptype")
       : "terrain";
+    const validCenter =
+      centerLat !== null && centerLng !== null && centerLat >= -90 && centerLat <= 90 && centerLng >= -180 && centerLng <= 180;
 
     return {
       ...baseView,
-      center: [lat, lng],
+      center: validCenter ? [centerLat, centerLng] : [targetLat, targetLng],
       zoom,
       maptype,
-      marker: `color:red|label:${markerLabel(searchParams.get("label"))}|${lat},${lng}`,
-      path: dynamicAoiPath(lat, lng, scenario)
+      marker: `color:red|label:${markerLabel(searchParams.get("label"))}|${targetLat},${targetLng}`,
+      path: dynamicAoiPath(targetLat, targetLng, scenario)
     };
   }
 

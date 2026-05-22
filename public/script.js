@@ -761,10 +761,15 @@ function googleStaticMapUrl(viewKey) {
   const url = new URL(`${localApiBase()}/api/map-image`, window.location.href);
   const view = mapViewForKey(viewKey);
   const [lat, lng] = view.center;
+  const [targetLat, targetLng] = activeAoiGeometry().center;
 
   url.searchParams.set("scenario", viewKey);
   url.searchParams.set("lat", String(lat));
   url.searchParams.set("lng", String(lng));
+  url.searchParams.set("center_lat", String(lat));
+  url.searchParams.set("center_lng", String(lng));
+  url.searchParams.set("target_lat", String(targetLat));
+  url.searchParams.set("target_lng", String(targetLng));
   url.searchParams.set("label", view.markerLabel || viewKey.slice(0, 1));
   url.searchParams.set("zoom", String(view.zoom));
   url.searchParams.set("maptype", view.googleMapType || "terrain");
